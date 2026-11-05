@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Retro Spel-Byggare</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#07090e;color:#fff;font-family:'Courier New',Courier,monospace;min-height:100vh;padding:10px}
+h1{color:#ffcc00;text-shadow:3px 3px #000;text-align:center;font-size:clamp(16px,3vw,24px);margin-bottom:8px}
+.sub{text-align:center;color:#888;font-size:12px;margin-bottom:12px}
+.shell{max-width:1100px;margin:0 auto;border:4px solid #ffcc00;border-radius:10px;background:#0b0e14;
+box-shadow:0 0 24px rgba(255,204,0,.3);display:grid;grid-template-columns:1fr 1fr;min-height:70vh;overflow:hidden}
+@media(max-width:800px){.shell{grid-template-columns:1fr}}
+.pane{display:flex;flex-direction:column;min-height:420px}
+.pane-h{background:#151922;border-bottom:2px solid #ffcc00;padding:8px 12px;font-weight:bold;color:#ffcc00}
+#chat{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:92%;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.35;white-space:pre-wrap}
+.msg.bot{background:#1a2233;border:2px solid #445;align-self:flex-start}
+.msg.user{background:#3d2a00;border:2px solid #ffcc00;align-self:flex-end}
+.choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.choice{background:#222;border:2px solid #fff;color:#fff;font-family:inherit;font-size:12px;padding:6px 10px;cursor:pointer}
+.choice:hover,.choice:active{background:#ffcc00;color:#000}
+#composer{display:flex;gap:6px;padding:8px;border-top:2px solid #333}
+#composer input{flex:1;background:#151922;border:2px solid #555;color:#fff;padding:8px;font-family:inherit}
+#composer button{background:#ffcc00;color:#000;border:0;font-weight:bold;padding:8px 12px;font-family:inherit;cursor:pointer}
+.right{border-left:2px solid #333}
+#preview-wrap{flex:1;display:flex;flex-direction:column;background:#000}
+#preview{flex:1;width:100%;border:0;background:#000;min-height:260px}
+#code-wrap{display:none;flex:1;overflow:auto;background:#0a0a12}
+#code{width:100%;height:100%;min-height:260px;background:#0a0a12;color:#9f9;border:0;padding:8px;font-size:10px;font-family:Consolas,monospace}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-top:2px solid #333;background:#151922}
+.toolbar button{background:#222;border:2px solid #fff;color:#fff;font-family:inherit;font-size:12px;padding:8px 10px;cursor:pointer;font-weight:bold}
+.toolbar button:hover{background:#ffcc00;color:#000}
+.toolbar button.primary{background:#2ecc71;color:#000;border-color:#fff}
+.toolbar button:disabled{opacity:.4;cursor:default}
+#status{font-size:11px;color:#888;padding:0 8px 8px}
+</style>
+</head>
+<body>
+<h1>🕹️ RETRO SPEL-BYGGARE</h1>
+<p class="sub">Chatta fram ett retrospel · lokal mallmotor · ingen AI-nyckel · ladda ner HTML</p>
+<div class="shell">
+  <div class="pane">
+    <div class="pane-h">CHAT</div>
+    <div id="chat"></div>
+    <div id="composer">
+      <input id="inp" type="text" placeholder="Skriv svar..." maxlength="40">
+      <button type="button" id="send">SKICKA</button>
+    </div>
+  </div>
+  <div class="pane right">
+    <div class="pane-h">GENERERAT SPEL</div>
+    <div id="preview-wrap">
+      <iframe id="preview" sandbox="allow-scripts" title="Förhandsgranskning"></iframe>
+      <div id="code-wrap"><textarea id="code" readonly></textarea></div>
+    </div>
+    <div class="toolbar">
+      <button type="button" class="primary" id="btn-dl" disabled>⬇ Ladda ner</button>
+      <button type="button" id="btn-prev" disabled>▶ Förhandsgranska</button>
+      <button type="button" id="btn-code" disabled>{} Kod</button>
+      <button type="button" id="btn-open" disabled>⧉ Öppna</button>
+      <button type="button" id="btn-reset">↺ Börja om</button>
+    </div>
+    <div id="status">Välj typ i chatten för att börja.</div>
+  </div>
+</div>
+<script>
+
+var TEMPLATES = {"plattformare": "<!DOCTYPE html>\n<html lang=\"sv\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>{{TITLE}}</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}body{background:#07090e;color:#fff;font-family:Courier New,monospace;display:flex;flex-direction:column;align-items:center;padding:10px}\nh1{color:#ffcc00;text-shadow:2px 2px #000;font-size:18px;margin-bottom:8px}\ncanvas{border:4px solid #ffcc00;background:{{BG}};max-width:100%;image-rendering:pixelated}\n.help{color:#888;font-size:11px;margin-top:8px;text-align:center}\n</style></head><body>\n<h1>{{TITLE}}</h1>\n<canvas id=\"c\" width=\"640\" height=\"360\"></canvas>\n<p class=\"help\">Pilar/WASD = rör dig · Mellanslag/W = hoppa · Samla mynt · Undvik fiender</p>\n<script>\n(function(){\nvar C=document.getElementById('c'),X=C.getContext('2d');\nvar keys={},player={x:40,y:200,vx:0,vy:0,w:18,h:24,on:false,lives:3,score:0,name:{{PLAYER_JS}},color:{{COLOR_JS}}};\nvar cams=0;\nvar solids=[{x:0,y:330,w:640,h:30},{x:120,y:270,w:80,h:14},{x:240,y:220,w:90,h:14},{x:380,y:180,w:70,h:14},{x:500,y:250,w:100,h:14},{x:40,y:150,w:60,h:14}];\nvar coins=[{x:140,y:240,got:0},{x:270,y:190,got:0},{x:400,y:150,got:0},{x:540,y:220,got:0},{x:60,y:120,got:0},{x:320,y:300,got:0}];\nvar foes=[{x:200,y:310,vx:1.2,w:16,h:16},{x:450,y:310,vx:-1.4,w:16,h:16},{x:260,y:200,vx:1,w:16,h:16}];\nwindow.onkeydown=function(e){keys[e.code]=1;if([\"Space\",\"ArrowUp\",\"ArrowDown\",\"ArrowLeft\",\"ArrowRight\"].indexOf(e.code)>=0)e.preventDefault()};\nwindow.onkeyup=function(e){keys[e.code]=0};\nfunction aabb(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}\nfunction loop(){\n  var L=keys.ArrowLeft||keys.KeyA,R=keys.ArrowRight||keys.KeyD,J=keys.Space||keys.ArrowUp||keys.KeyW;\n  player.vx=(R?1:0)-(L?1:0);player.vx*=2.4;\n  if(J&&player.on){player.vy=-7.2;player.on=false}\n  player.vy+=0.35;player.x+=player.vx;player.y+=player.vy;player.on=false;\n  for(var i=0;i<solids.length;i++){\n    var s=solids[i];\n    if(aabb(player,s)){\n      if(player.vy>0&&player.y+player.h-player.vy<=s.y+2){player.y=s.y-player.h;player.vy=0;player.on=true}\n      else if(player.vy<0){player.y=s.y+s.h;player.vy=0}\n      else if(player.vx>0)player.x=s.x-player.w;\n      else if(player.vx<0)player.x=s.x+s.w;\n    }\n  }\n  if(player.y>400){player.x=40;player.y=200;player.vy=0;player.lives--}\n  for(var i=0;i<coins.length;i++){var c=coins[i];if(!c.got&&Math.hypot(player.x+9-c.x,player.y+12-c.y)<18){c.got=1;player.score+=10}}\n  for(var i=0;i<foes.length;i++){\n    var f=foes[i];f.x+=f.vx;if(f.x<10||f.x>620)f.vx*=-1;\n    if(aabb(player,{x:f.x,y:f.y,w:f.w,h:f.h})){\n      if(player.vy>0&&player.y+player.h-10<f.y){foes.splice(i,1);player.vy=-5;player.score+=25;i--}\n      else{player.x=40;player.y=200;player.vy=0;player.lives--}\n    }\n  }\n  X.fillStyle={{BG_JS}};X.fillRect(0,0,640,360);\n  // sky dots\n  X.fillStyle='rgba(255,255,255,0.15)';for(var i=0;i<20;i++)X.fillRect((i*97)%640,(i*53)%120,2,2);\n  X.fillStyle={{ACCENT_JS}};\n  for(var i=0;i<solids.length;i++){var s=solids[i];X.fillRect(s.x,s.y,s.w,s.h)}\n  for(var i=0;i<coins.length;i++){var c=coins[i];if(!c.got){X.fillStyle='#ffcc00';X.beginPath();X.arc(c.x,c.y,6,0,6.28);X.fill()}}\n  X.fillStyle='#e74c3c';for(var i=0;i<foes.length;i++){var f=foes[i];X.fillRect(f.x,f.y,f.w,f.h)}\n  // player\n  X.fillStyle=player.color;X.fillRect(player.x,player.y,player.w,player.h);\n  X.fillStyle='#f5cba7';X.fillRect(player.x+3,player.y-8,12,10);\n  X.fillStyle='#111';X.fillRect(player.x+5,player.y-5,3,3);X.fillRect(player.x+11,player.y-5,3,3);\n  X.fillStyle='#ffcc00';X.font='12px Courier New';X.fillText(player.name+'  Poäng:'+player.score+'  Liv:'+player.lives,8,16);\n  if(player.lives<=0){X.fillStyle='rgba(0,0,0,0.7)';X.fillRect(0,0,640,360);X.fillStyle='#ffcc00';X.font='28px Courier New';X.fillText('GAME OVER',230,180)}\n  else if(coins.every(function(c){return c.got})){X.fillStyle='rgba(0,0,0,0.55)';X.fillRect(0,0,640,360);X.fillStyle='#2ecc71';X.font='28px Courier New';X.fillText('KLART!',270,180)}\n  requestAnimationFrame(loop);\n}\nloop();\n})();\n<\/script></body></html>", "kartracer": "<!DOCTYPE html>\n<html lang=\"sv\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,user-scalable=no\">\n<title>{{TITLE}}</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box;user-select:none}body{background:#07090e;color:#fff;font-family:Courier New,monospace;display:flex;flex-direction:column;align-items:center;padding:8px}\nh1{color:#ffcc00;text-shadow:2px 2px #000;font-size:18px;margin-bottom:6px}\n#wrap{position:relative;width:100%;max-width:800px;border:4px solid #ffcc00;background:#151922}\ncanvas{width:100%;display:block;image-rendering:pixelated}\n.hud{position:absolute;top:6px;left:6px;right:6px;display:flex;justify-content:space-between;pointer-events:none;font-weight:bold;text-shadow:2px 2px #000;font-size:12px}\n.hud b{background:rgba(0,0,0,.75);border:2px solid #fff;padding:4px 8px}\n#touch{display:flex;justify-content:space-between;width:100%;max-width:800px;padding:8px 0;gap:8px}\n.tbtn{width:56px;height:56px;border-radius:50%;background:#222;border:3px solid #fff;color:#fff;font-weight:bold;font-family:inherit}\n.gas{background:#5cb85c}.item{background:#d9534f}\n.help{color:#888;font-size:11px;margin-top:6px;text-align:center}\n</style></head><body>\n<h1>{{TITLE}}</h1>\n<div id=\"wrap\">\n  <div class=\"hud\"><b id=\"item\">ITEM: —</b><b id=\"lap\">VARV: 1/3</b><b id=\"pos\">POS: 1:a</b></div>\n  <canvas id=\"c\" width=\"800\" height=\"450\"></canvas>\n</div>\n<div id=\"touch\">\n  <div><button class=\"tbtn\" id=\"L\">◀</button><button class=\"tbtn\" id=\"R\">▶</button></div>\n  <div><button class=\"tbtn item\" id=\"I\">🎁</button><button class=\"tbtn gas\" id=\"G\">GAS</button></div>\n</div>\n<p class=\"help\">WASD/pilar · Mellanslag=drift · E=föremål · 3 varv mot AI</p>\n<script>\n(function(){\nvar C=document.getElementById('c'),X=C.getContext('2d'),W=800,H=450;\nvar keys={};var name={{PLAYER_JS}},color={{COLOR_JS}},theme={{THEME_JS}};\nvar items=[\"🍌 Banan\",\"💉 Vaccin\",\"💊 Sköld\"];\nfunction Kart(nm,col,ai,x){return{name:nm,color:col,ai:ai,x:x,speed:0,angle:0,lap:1,progress:0,item:null,boost:0,shield:0,spin:0,place:1}}\nvar racers=[Kart(name,color,0,0),Kart(\"Ferdi\",\"#34495e\",1,-0.35),Kart(\"Annie\",\"#e74c3c\",1,0.35),Kart(\"Balto\",\"#2ecc71\",1,-0.6),Kart(\"Bobban\",\"#9b59b6\",1,0.6)];\nvar me=racers[0],pos=0,cd=3,cdt=1,done=0;\nwindow.onkeydown=function(e){keys[e.code]=1;if([\"Space\",\"ArrowUp\",\"ArrowDown\",\"ArrowLeft\",\"ArrowRight\"].indexOf(e.code)>=0)e.preventDefault();\n  if((e.code===\"KeyE\"||e.code===\"ShiftLeft\")&&me.item){useItem();keys[e.code]=0}};\nwindow.onkeyup=function(e){keys[e.code]=0};\nfunction bind(id,code){var el=document.getElementById(id);el.ontouchstart=el.onmousedown=function(e){e.preventDefault();keys[code]=1};el.ontouchend=el.onmouseup=function(e){e.preventDefault();keys[code]=0}}\nbind(\"L\",\"ArrowLeft\");bind(\"R\",\"ArrowRight\");bind(\"G\",\"ArrowUp\");\ndocument.getElementById(\"I\").onclick=function(){if(me.item)useItem()};\nfunction useItem(){\n  var it=me.item;me.item=null;document.getElementById(\"item\").textContent=\"ITEM: —\";\n  if(it.indexOf(\"Vaccin\")>=0)me.boost=90;\n  else if(it.indexOf(\"Sköld\")>=0)me.shield=180;\n  else {me._banana=1}\n}\nfunction update(){\n  if(cd>0){cdt-=1/60;if(cdt<=0){cd--;cdt=1}return}\n  if(done)return;\n  racers.forEach(function(r,i){\n    if(r.spin>0){r.spin--;r.speed*=0.9;return}\n    if(r.boost>0)r.boost--;\n    if(r.shield>0)r.shield--;\n    var gas,left,right,drift;\n    if(!r.ai){\n      gas=keys.ArrowUp||keys.KeyW;left=keys.ArrowLeft||keys.KeyA;right=keys.ArrowRight||keys.KeyD;drift=keys.Space;\n    } else {\n      gas=1;left=Math.sin(pos*0.01+i)>0.6;right=Math.sin(pos*0.01+i)<-0.6;drift=0;\n      r.speed=Math.min(r.speed,3.2);\n      if(!r.item&&Math.random()<0.002){r.item=items[Math.floor(Math.random()*3)];}\n      if(r.item&&Math.random()<0.005){var t=r.item;r.item=null;if(t.indexOf(\"Vaccin\")>=0)r.boost=70}\n    }\n    var max=4+(r.boost>0?1.5:0);\n    if(gas)r.speed=Math.min(max,r.speed+0.08);else r.speed=Math.max(0,r.speed-0.04);\n    var turn=0.035+(drift&&r.speed>1.5?0.03:0);\n    if(left)r.angle-=turn;if(right)r.angle+=turn;\n    if(!r.ai){pos+=r.speed;r.progress=pos+(r.lap-1)*1000}\n    else {r.progress+=r.speed*0.95+(r.lap-1)*1000}\n    if(!r.ai&&pos>1000){pos=0;r.lap++;if(r.lap>3){r.lap=3;done=1}}\n    if(r.ai&&r.progress%1000<r.speed) { /* soft lap */ if(Math.random()<0.02)r.lap=Math.min(3,r.lap+1)}\n    if(!r.ai&&!r.item&&Math.random()<0.003){r.item=items[Math.floor(Math.random()*3)];document.getElementById(\"item\").textContent=\"ITEM: \"+r.item}\n  });\n  // places\n  var sorted=racers.slice().sort(function(a,b){return b.progress-a.progress});\n  sorted.forEach(function(r,i){r.place=i+1});\n  var pn=[\"1:a\",\"2:a\",\"3:e\",\"4:e\",\"5:e\"];\n  document.getElementById(\"lap\").textContent=\"VARV: \"+me.lap+\"/3\";\n  document.getElementById(\"pos\").textContent=\"POS: \"+pn[me.place-1];\n}\nfunction draw(){\n  X.fillStyle=theme===\"rymden\"||theme===\"neon\"?\"#0b0e14\":\"#1a3a6e\";X.fillRect(0,0,W,H/2);\n  if(theme===\"rymden\"||theme===\"neon\"){X.fillStyle=\"#fff\";for(var i=0;i<40;i++)X.fillRect((i*97)%W,(i*37)%(H/2),2,2)}\n  // rainbow / road ribbon\n  var cols=theme===\"skog\"?[\"#2ecc71\",\"#27ae60\",\"#1e8449\",\"#196f3d\"]:theme===\"stad\"?[\"#555\",\"#666\",\"#777\",\"#888\"]:[\"#ff0040\",\"#ff7f00\",\"#ffe600\",\"#00e676\",\"#2979ff\",\"#aa00ff\"];\n  for(var n=0;n<110;n++){\n    var y=H/2+(n*n)*0.018;var width=30+n*7;\n    var x=W/2+Math.sin((pos+n)*0.045)*(n*1.4)-(me.angle*n*5);\n    X.fillStyle=cols[(n+Math.floor(pos/4))%cols.length];\n    X.fillRect(x-width/2,y,width,3);\n  }\n  racers.forEach(function(r,i){\n    var kx=W/2+(r.x*130)-(me.angle*18);var ky=H-70-(i*10);\n    X.fillStyle=r.color;X.fillRect(kx-18,ky-14,36,18);\n    X.fillStyle=\"#111\";X.fillRect(kx-22,ky-4,8,10);X.fillRect(kx+14,ky-4,8,10);\n    X.fillStyle=\"#f5cba7\";X.beginPath();X.arc(kx,ky-22,9,0,6.28);X.fill();\n    if(r.shield>0){X.strokeStyle=\"#8cf\";X.beginPath();X.arc(kx,ky-10,24,0,6.28);X.stroke()}\n    X.fillStyle=\"#fff\";X.font=\"10px Courier New\";X.textAlign=\"center\";X.fillText(r.name,kx,ky-34);\n  });\n  if(cd>0){X.fillStyle=\"rgba(0,0,0,0.45)\";X.fillRect(0,0,W,H);X.fillStyle=\"#ffcc00\";X.font=\"bold 90px Courier New\";X.textAlign=\"center\";X.fillText(String(cd),W/2,H/2)}\n  if(done){X.fillStyle=\"rgba(0,0,0,0.55)\";X.fillRect(0,0,W,H);X.fillStyle=\"#ffcc00\";X.font=\"bold 40px Courier New\";X.textAlign=\"center\";X.fillText(me.place===1?\"SEGER!\":\"MÅLGÅNG #\"+me.place,W/2,H/2)}\n}\nfunction loop(){update();draw();requestAnimationFrame(loop)}\nloop();\n})();\n<\/script></body></html>", "shooter": "<!DOCTYPE html>\n<html lang=\"sv\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>{{TITLE}}</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}body{background:#07090e;color:#fff;font-family:Courier New,monospace;display:flex;flex-direction:column;align-items:center;padding:10px}\nh1{color:#ffcc00;text-shadow:2px 2px #000;font-size:18px;margin-bottom:8px}\ncanvas{border:4px solid #ffcc00;background:{{BG}};max-width:100%;image-rendering:pixelated}\n.help{color:#888;font-size:11px;margin-top:8px;text-align:center}\n</style></head><body>\n<h1>{{TITLE}}</h1>\n<canvas id=\"c\" width=\"640\" height=\"360\"></canvas>\n<p class=\"help\">WASD/pilar = rör dig · Mellanslag/Klick = skjut · Överlev vågorna</p>\n<script>\n(function(){\nvar C=document.getElementById('c'),X=C.getContext('2d');\nvar keys={},mx=320,my=180;\nvar p={x:320,y:180,r:12,hp:5,score:0,cd:0,name:{{PLAYER_JS}},color:{{COLOR_JS}}};\nvar bullets=[],enemies=[],spawn=0,wave=1;\nwindow.onkeydown=function(e){keys[e.code]=1;if(e.code==='Space')e.preventDefault()};\nwindow.onkeyup=function(e){keys[e.code]=0};\nC.onmousemove=function(e){var r=C.getBoundingClientRect();mx=(e.clientX-r.left)*C.width/r.width;my=(e.clientY-r.top)*C.height/r.height};\nC.onmousedown=function(){shoot()};\nfunction shoot(){\n  if(p.cd>0||p.hp<=0)return;p.cd=10;\n  var a=Math.atan2(my-p.y,mx-p.x);\n  bullets.push({x:p.x,y:p.y,vx:Math.cos(a)*7,vy:Math.sin(a)*7});\n}\nfunction loop(){\n  var dx=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0);\n  var dy=(keys.ArrowDown||keys.KeyS?1:0)-(keys.ArrowUp||keys.KeyW?1:0);\n  p.x=Math.max(14,Math.min(626,p.x+dx*3.2));p.y=Math.max(14,Math.min(346,p.y+dy*3.2));\n  if(keys.Space)shoot();if(p.cd>0)p.cd--;\n  spawn--;if(spawn<=0){spawn=Math.max(25,70-wave*4);\n    var side=Math.floor(Math.random()*4),ex,ey;\n    if(side===0){ex=0;ey=Math.random()*360}else if(side===1){ex=640;ey=Math.random()*360}\n    else if(side===2){ex=Math.random()*640;ey=0}else{ex=Math.random()*640;ey=360}\n    enemies.push({x:ex,y:ey,hp:1+Math.floor(wave/3),r:10});\n  }\n  for(var i=bullets.length-1;i>=0;i--){\n    var b=bullets[i];b.x+=b.vx;b.y+=b.vy;\n    if(b.x<0||b.x>640||b.y<0||b.y>360){bullets.splice(i,1);continue}\n    for(var j=enemies.length-1;j>=0;j--){\n      var e=enemies[j];if(Math.hypot(b.x-e.x,b.y-e.y)<e.r+4){e.hp--;bullets.splice(i,1);if(e.hp<=0){enemies.splice(j,1);p.score+=10;if(p.score%50===0)wave++}break}\n    }\n  }\n  for(var j=enemies.length-1;j>=0;j--){\n    var e=enemies[j],a=Math.atan2(p.y-e.y,p.x-e.x);e.x+=Math.cos(a)*(1.1+wave*0.05);e.y+=Math.sin(a)*(1.1+wave*0.05);\n    if(Math.hypot(e.x-p.x,e.y-p.y)<e.r+p.r){enemies.splice(j,1);p.hp--}\n  }\n  X.fillStyle={{BG_JS}};X.fillRect(0,0,640,360);\n  X.strokeStyle={{ACCENT_JS}};X.globalAlpha=0.2;X.beginPath();for(var g=0;g<640;g+=40){X.moveTo(g,0);X.lineTo(g,360)}for(var g=0;g<360;g+=40){X.moveTo(0,g);X.lineTo(640,g)}X.stroke();X.globalAlpha=1;\n  X.fillStyle='#ffee88';for(var i=0;i<bullets.length;i++){X.fillRect(bullets[i].x-2,bullets[i].y-2,4,4)}\n  X.fillStyle='#e74c3c';for(var i=0;i<enemies.length;i++){X.beginPath();X.arc(enemies[i].x,enemies[i].y,enemies[i].r,0,6.28);X.fill()}\n  X.fillStyle=p.color;X.beginPath();X.arc(p.x,p.y,p.r,0,6.28);X.fill();\n  X.fillStyle='#f5cba7';X.beginPath();X.arc(p.x,p.y-2,6,0,6.28);X.fill();\n  X.strokeStyle='#ffcc00';X.beginPath();X.moveTo(p.x,p.y);X.lineTo(p.x+Math.cos(Math.atan2(my-p.y,mx-p.x))*20,p.y+Math.sin(Math.atan2(my-p.y,mx-p.x))*20);X.stroke();\n  X.fillStyle='#ffcc00';X.font='12px Courier New';X.fillText(p.name+'  Poäng:'+p.score+'  HP:'+p.hp+'  Våg:'+wave,8,16);\n  if(p.hp<=0){X.fillStyle='rgba(0,0,0,0.7)';X.fillRect(0,0,640,360);X.fillStyle='#ffcc00';X.font='28px Courier New';X.fillText('GAME OVER',230,180)}\n  requestAnimationFrame(loop);\n}\nloop();\n})();\n<\/script></body></html>", "breakout": "<!DOCTYPE html>\n<html lang=\"sv\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>{{TITLE}}</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}body{background:#07090e;color:#fff;font-family:Courier New,monospace;display:flex;flex-direction:column;align-items:center;padding:10px}\nh1{color:#ffcc00;text-shadow:2px 2px #000;font-size:18px;margin-bottom:8px}\ncanvas{border:4px solid #ffcc00;background:{{BG}};max-width:100%;image-rendering:pixelated}\n.help{color:#888;font-size:11px;margin-top:8px;text-align:center}\n</style></head><body>\n<h1>{{TITLE}}</h1>\n<canvas id=\"c\" width=\"640\" height=\"360\"></canvas>\n<p class=\"help\">Pilar/A-D = racket · Mellanslag = starta boll · Krossa alla brickor</p>\n<script>\n(function(){\nvar C=document.getElementById('c'),X=C.getContext('2d');\nvar keys={},pad={x:280,y:330,w:80,h:12},ball={x:320,y:300,vx:0,vy:0,r:6,on:1};\nvar score=0,lives=3,name={{PLAYER_JS}},color={{COLOR_JS}};\nvar bricks=[],colors=['#e74c3c','#e67e22','#f1c40f','#2ecc71','#3498db','#9b59b6'];\nfor(var r=0;r<5;r++)for(var c=0;c<10;c++)bricks.push({x:16+c*62,y:40+r*22,w:56,h:16,alive:1,col:colors[r]});\nwindow.onkeydown=function(e){keys[e.code]=1;if(e.code==='Space'){e.preventDefault();if(ball.on){ball.on=0;ball.vx=3*(Math.random()>.5?1:-1);ball.vy=-4}}};\nwindow.onkeyup=function(e){keys[e.code]=0};\nfunction loop(){\n  var L=keys.ArrowLeft||keys.KeyA,R=keys.ArrowRight||keys.KeyD;\n  pad.x+=((R?1:0)-(L?1:0))*6;pad.x=Math.max(0,Math.min(560,pad.x));\n  if(ball.on){ball.x=pad.x+pad.w/2;ball.y=pad.y-10}\n  else{\n    ball.x+=ball.vx;ball.y+=ball.vy;\n    if(ball.x<6||ball.x>634)ball.vx*=-1;\n    if(ball.y<6)ball.vy*=-1;\n    if(ball.y>360){lives--;ball.on=1;ball.vx=0;ball.vy=0;if(lives<=0)bricks.forEach(function(b){b.alive=1});if(lives<=0){score=0;lives=3}}\n    if(ball.y+6>=pad.y&&ball.y<pad.y+pad.h&&ball.x>pad.x&&ball.x<pad.x+pad.w&&ball.vy>0){\n      ball.vy*=-1;ball.vx=(ball.x-(pad.x+pad.w/2))/12;\n    }\n    for(var i=0;i<bricks.length;i++){\n      var b=bricks[i];if(!b.alive)continue;\n      if(ball.x>b.x&&ball.x<b.x+b.w&&ball.y>b.y&&ball.y<b.y+b.h){b.alive=0;ball.vy*=-1;score+=10}\n    }\n  }\n  X.fillStyle={{BG_JS}};X.fillRect(0,0,640,360);\n  for(var i=0;i<bricks.length;i++){var b=bricks[i];if(b.alive){X.fillStyle=b.col;X.fillRect(b.x,b.y,b.w,b.h)}}\n  X.fillStyle=color;X.fillRect(pad.x,pad.y,pad.w,pad.h);\n  X.fillStyle='#fff';X.beginPath();X.arc(ball.x,ball.y,ball.r,0,6.28);X.fill();\n  X.fillStyle='#ffcc00';X.font='12px Courier New';X.fillText(name+'  Poäng:'+score+'  Liv:'+lives,8,16);\n  if(bricks.every(function(b){return !b.alive})){X.fillStyle='rgba(0,0,0,0.55)';X.fillRect(0,0,640,360);X.fillStyle='#2ecc71';X.font='28px Courier New';X.fillText('DU VANN!',250,180)}\n  requestAnimationFrame(loop);\n}\nloop();\n})();\n<\/script></body></html>", "pong": "<!DOCTYPE html>\n<html lang=\"sv\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>{{TITLE}}</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}body{background:#07090e;color:#fff;font-family:Courier New,monospace;display:flex;flex-direction:column;align-items:center;padding:10px}\nh1{color:#ffcc00;text-shadow:2px 2px #000;font-size:18px;margin-bottom:8px}\ncanvas{border:4px solid #ffcc00;background:{{BG}};max-width:100%;image-rendering:pixelated}\n.help{color:#888;font-size:11px;margin-top:8px;text-align:center}\n</style></head><body>\n<h1>{{TITLE}}</h1>\n<canvas id=\"c\" width=\"640\" height=\"360\"></canvas>\n<p class=\"help\">W/S = din racket · Först till 5 vinner</p>\n<script>\n(function(){\nvar C=document.getElementById('c'),X=C.getContext('2d');\nvar keys={},p1={y:140,score:0},p2={y:140,score:0},ball={x:320,y:180,vx:3.5,vy:2};\nvar name={{PLAYER_JS}},color={{COLOR_JS}};\nwindow.onkeydown=function(e){keys[e.code]=1};window.onkeyup=function(e){keys[e.code]=0};\nfunction reset(dir){ball.x=320;ball.y=180;ball.vx=3.5*dir;ball.vy=(Math.random()*2-1)*3}\nfunction loop(){\n  if(keys.KeyW||keys.ArrowUp)p1.y-=5;if(keys.KeyS||keys.ArrowDown)p1.y+=5;\n  p1.y=Math.max(0,Math.min(300,p1.y));\n  var t=ball.y-20;p2.y+=(t-p2.y)*0.08;p2.y=Math.max(0,Math.min(300,p2.y));\n  ball.x+=ball.vx;ball.y+=ball.vy;\n  if(ball.y<6||ball.y>354)ball.vy*=-1;\n  if(ball.x<28&&ball.y>p1.y&&ball.y<p1.y+60){ball.vx=Math.abs(ball.vx)*1.05;ball.vy+=(ball.y-(p1.y+30))/20}\n  if(ball.x>612&&ball.y>p2.y&&ball.y<p2.y+60){ball.vx=-Math.abs(ball.vx)*1.05;ball.vy+=(ball.y-(p2.y+30))/20}\n  if(ball.x<0){p2.score++;reset(1)}if(ball.x>640){p1.score++;reset(-1)}\n  X.fillStyle={{BG_JS}};X.fillRect(0,0,640,360);\n  X.strokeStyle={{ACCENT_JS}};X.setLineDash([8,8]);X.beginPath();X.moveTo(320,0);X.lineTo(320,360);X.stroke();X.setLineDash([]);\n  X.fillStyle=color;X.fillRect(12,p1.y,12,60);\n  X.fillStyle='#aaa';X.fillRect(616,p2.y,12,60);\n  X.fillStyle='#fff';X.beginPath();X.arc(ball.x,ball.y,6,0,6.28);X.fill();\n  X.fillStyle='#ffcc00';X.font='16px Courier New';X.fillText(name+' '+p1.score+'  -  '+p2.score+' CPU',220,24);\n  if(p1.score>=5||p2.score>=5){X.fillStyle='rgba(0,0,0,0.6)';X.fillRect(0,0,640,360);X.fillStyle='#ffcc00';X.font='28px Courier New';X.fillText(p1.score>=5?'DU VANN!':'CPU VANN',240,180)}\n  else requestAnimationFrame(loop);\n}\nloop();\n})();\n<\/script></body></html>", "maze": "<!DOCTYPE html>\n<html lang=\"sv\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>{{TITLE}}</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}body{background:#07090e;color:#fff;font-family:Courier New,monospace;display:flex;flex-direction:column;align-items:center;padding:10px}\nh1{color:#ffcc00;text-shadow:2px 2px #000;font-size:18px;margin-bottom:8px}\ncanvas{border:4px solid #ffcc00;background:{{BG}};max-width:100%;image-rendering:pixelated}\n.help{color:#888;font-size:11px;margin-top:8px;text-align:center}\n</style></head><body>\n<h1>{{TITLE}}</h1>\n<canvas id=\"c\" width=\"640\" height=\"360\"></canvas>\n<p class=\"help\">Pilar/WASD = gå · Ät punkter · Undvik spöken · Hitta utgången</p>\n<script>\n(function(){\nvar C=document.getElementById('c'),X=C.getContext('2d'),TS=20;\nvar map=[\n\"########################\",\n\"#...........##.........#\",\n\"#.####.#####.##.######.#\",\n\"#.#..................#.#\",\n\"#.#.######.##.######.#.#\",\n\"#......#...##...#......#\",\n\"######.#.##..##.#.######\",\n\"#........#.....#.......#\",\n\"#.######.#####.#######.#\",\n\"#......................#\",\n\"#.####.###..###.####.#.#\",\n\"#....#...........#.....#\",\n\"########################\"\n];\nvar rows=map.length,cols=map[0].length;\nvar p={c:1,r:1,x:0,y:0,px:1,py:1,t:0,score:0,name:{{PLAYER_JS}},color:{{COLOR_JS}}};\np.x=p.c*TS;p.y=p.r*TS;\nvar dots=[];for(var r=0;r<rows;r++)for(var c=0;c<cols;c++)if(map[r][c]==='.')dots.push({c:c,r:r,got:0});\nvar ghosts=[{c:10,r:5,x:200,y:100,dir:0,col:'#e74c3c'},{c:12,r:7,x:240,y:140,dir:1,col:'#9b59b6'},{c:8,r:9,x:160,y:180,dir:2,col:'#2ecc71'}];\nghosts.forEach(function(g){g.x=g.c*TS;g.y=g.r*TS});\nvar keys={},queue=null;\nwindow.onkeydown=function(e){keys[e.code]=1;var d=null;if(e.code==='ArrowLeft'||e.code==='KeyA')d=[-1,0];if(e.code==='ArrowRight'||e.code==='KeyD')d=[1,0];if(e.code==='ArrowUp'||e.code==='KeyW')d=[0,-1];if(e.code==='ArrowDown'||e.code==='KeyS')d=[0,1];if(d){queue=d;e.preventDefault()}};\nwindow.onkeyup=function(e){keys[e.code]=0};\nfunction free(c,r){return map[r]&&map[r][c]&&map[r][c]!=='#'}\nfunction loop(){\n  if(queue){\n    var nc=p.c+queue[0],nr=p.r+queue[1];\n    if(free(nc,nr)&&Math.abs(p.x-p.c*TS)<1&&Math.abs(p.y-p.r*TS)<1){p.c=nc;p.r=nr;p.px=queue[0];p.py=queue[1];queue=null}\n  }\n  var tx=p.c*TS,ty=p.r*TS;p.x+=(tx-p.x)*0.35;p.y+=(ty-p.y)*0.35;\n  if(Math.abs(p.x-tx)<0.5&&Math.abs(p.y-ty)<0.5&&!queue){var nc=p.c+p.px,nr=p.r+p.py;if(free(nc,nr)){p.c=nc;p.r=nr}else{p.px=0;p.py=0}}\n  for(var i=0;i<dots.length;i++){var d=dots[i];if(!d.got&&d.c===p.c&&d.r===p.r){d.got=1;p.score+=10}}\n  ghosts.forEach(function(g){\n    if(Math.random()<0.02)g.dir=Math.floor(Math.random()*4);\n    var dirs=[[1,0],[-1,0],[0,1],[0,-1]],d=dirs[g.dir],nc=g.c+d[0],nr=g.r+d[1];\n    if(free(nc,nr)&&Math.abs(g.x-g.c*TS)<1&&Math.abs(g.y-g.r*TS)<1){g.c=nc;g.r=nr}else g.dir=Math.floor(Math.random()*4);\n    g.x+=(g.c*TS-g.x)*0.2;g.y+=(g.r*TS-g.y)*0.2;\n    if(Math.hypot(g.x-p.x,g.y-p.y)<12){p.c=1;p.r=1;p.x=TS;p.y=TS;p.score=Math.max(0,p.score-30)}\n  });\n  X.fillStyle={{BG_JS}};X.fillRect(0,0,640,360);\n  var ox=(640-cols*TS)/2,oy=(360-rows*TS)/2;\n  for(var r=0;r<rows;r++)for(var c=0;c<cols;c++){\n    if(map[r][c]==='#'){X.fillStyle={{ACCENT_JS}};X.fillRect(ox+c*TS,oy+r*TS,TS,TS)}\n  }\n  X.fillStyle='#ffcc00';dots.forEach(function(d){if(!d.got){X.beginPath();X.arc(ox+d.c*TS+10,oy+d.r*TS+10,3,0,6.28);X.fill()}});\n  ghosts.forEach(function(g){X.fillStyle=g.col;X.beginPath();X.arc(ox+g.x+10,oy+g.y+10,8,0,6.28);X.fill()});\n  X.fillStyle=p.color;X.beginPath();X.arc(ox+p.x+10,oy+p.y+10,8,0,6.28);X.fill();\n  X.fillStyle='#ffcc00';X.font='12px Courier New';X.fillText(p.name+'  Poäng:'+p.score,8,16);\n  if(dots.every(function(d){return d.got})){X.fillStyle='rgba(0,0,0,0.55)';X.fillRect(0,0,640,360);X.fillStyle='#2ecc71';X.font='28px Courier New';X.fillText('BANAN KLAR!',230,180)}\n  requestAnimationFrame(loop);\n}\nloop();\n})();\n<\/script></body></html>", "board": "<!DOCTYPE html>\n<html lang=\"sv\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>{{TITLE}}</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}body{background:#07090e;color:#fff;font-family:Courier New,monospace;display:flex;flex-direction:column;align-items:center;padding:10px}\nh1{color:#ffcc00;text-shadow:2px 2px #000;font-size:18px;margin-bottom:8px}\n#board{display:grid;grid-template-columns:repeat(8,40px);gap:4px;border:4px solid #ffcc00;padding:10px;background:{{BG}}}\n.cell{width:40px;height:40px;background:#151922;border:2px solid #444;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer}\n.cell.start{border-color:#ffcc00}.cell.goal{border-color:#2ecc71}.cell.trap{border-color:#e74c3c}\n.btn{margin-top:10px;background:#ffcc00;color:#000;border:0;padding:10px 18px;font-weight:bold;font-family:inherit;cursor:pointer}\n#log{margin-top:8px;color:#0fc;min-height:40px;text-align:center;font-size:13px}\n</style></head><body>\n<h1>{{TITLE}}</h1>\n<div id=\"board\"></div>\n<button class=\"btn\" id=\"roll\">SLÅ TÄRNING</button>\n<div id=\"log\">Hjälp {{PLAYER}} till målet! Undvik fällor.</div>\n<script>\n(function(){\nvar path=[0,1,2,3,11,19,27,35,43,51,59,58,57,56,48,40,32,24,16,8,9,10,18,26,34,42,50,49,41,33];\nvar traps={3:1,19:1,35:1,56:1,24:1},goal=path[path.length-1];\nvar pos=0,name={{PLAYER_JS}},color={{COLOR_JS}};\nvar board=document.getElementById('board');\nfor(var i=0;i<64;i++){var d=document.createElement('div');d.className='cell';d.id='c'+i;board.appendChild(d)}\nfunction draw(){\n  for(var i=0;i<64;i++){var el=document.getElementById('c'+i);el.textContent='';el.style.background='#151922';\n    if(path.indexOf(i)>=0)el.style.background='#1a2233';\n    if(i===path[0])el.className='cell start';else if(i===goal)el.className='cell goal';else if(traps[i])el.className='cell trap';else el.className='cell';\n  }\n  var el=document.getElementById('c'+path[pos]);el.textContent='☺';el.style.background=color;\n}\ndocument.getElementById('roll').onclick=function(){\n  var n=1+Math.floor(Math.random()*6);pos=Math.min(path.length-1,pos+n);\n  var msg=name+' slog '+n;\n  if(traps[path[pos]]){pos=Math.max(0,pos-3);msg+='; — FÄLLA! bakåt 3'}\n  if(path[pos]===goal)msg='🎉 '+name+' NÅDDE MÅLET!';\n  document.getElementById('log').textContent=msg;draw();\n};\ndraw();\n})();\n<\/script></body></html>"};
+var THEMES = {"skog": {"bg": "#0b1f0f", "accent": "#2ecc71", "label": "Skog"}, "rymden": {"bg": "#070914", "accent": "#9b59b6", "label": "Rymden"}, "stad": {"bg": "#12141a", "accent": "#3498db", "label": "Stad"}, "neon": {"bg": "#0a0014", "accent": "#ff00aa", "label": "Neon"}, "oeken": {"bg": "#2a1a0a", "accent": "#e67e22", "label": "Öken"}, "sverige": {"bg": "#0a1a33", "accent": "#ffcc00", "label": "Sverige"}};
+
+var TYPES = [
+  {id:"plattformare", label:"Plattformare", desc:"Hoppa, mynt, fiender"},
+  {id:"kartracer", label:"Kartracer", desc:"Pseudo-3D race med items"},
+  {id:"shooter", label:"Top-down shooter", desc:"Skjut vågor av fiender"},
+  {id:"breakout", label:"Brickor / Breakout", desc:"Racket + boll + brickor"},
+  {id:"pong", label:"Pong", desc:"Klassisk racket-duell"},
+  {id:"maze", label:"Labyrint", desc:"Pac-stil: punkter & spöken"},
+  {id:"board", label:"Brädspel", desc:"Tärning längs en bana"}
+];
+var COLORS = [
+  {id:"#e67e22", label:"Orange (Benny)"},
+  {id:"#e74c3c", label:"Röd"},
+  {id:"#2ecc71", label:"Grön"},
+  {id:"#3498db", label:"Blå"},
+  {id:"#9b59b6", label:"Lila"},
+  {id:"#f1c40f", label:"Gul"}
+];
+
+var state = {step:"type", type:null, theme:null, player:"Benny", color:"#e67e22", html:""};
+var chat = document.getElementById("chat");
+var inp = document.getElementById("inp");
+var blobUrl = null;
+
+function bot(text, choices) {
+  var d = document.createElement("div");
+  d.className = "msg bot";
+  d.textContent = text;
+  if (choices && choices.length) {
+    var row = document.createElement("div");
+    row.className = "choices";
+    choices.forEach(function(c) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "choice";
+      b.textContent = c.label;
+      b.onclick = function() { pick(c); };
+      row.appendChild(b);
+    });
+    d.appendChild(row);
+  }
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+function user(text) {
+  var d = document.createElement("div");
+  d.className = "msg user";
+  d.textContent = text;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function pick(c) {
+  if (state.step === "type") {
+    user(c.label);
+    state.type = c.id;
+    state.step = "theme";
+    var th = Object.keys(THEMES).map(function(k){ return {id:k, label:THEMES[k].label}; });
+    bot("Snyggt! Vilket tema ska världen ha?", th);
+  } else if (state.step === "theme") {
+    user(c.label);
+    state.theme = c.id;
+    state.step = "color";
+    bot("Vilken färg ska hjälten ha?", COLORS);
+  } else if (state.step === "color") {
+    user(c.label);
+    state.color = c.id;
+    state.step = "name";
+    bot("Vad heter spelaren? Skriv ett namn (t.ex. Benny4real) och tryck SKICKA.", null);
+    inp.focus();
+  }
+}
+
+function fill(tpl) {
+  var th = THEMES[state.theme] || THEMES.neon;
+  var title = (TYPES.filter(function(t){return t.id===state.type})[0]||{}).label || "Retrospel";
+  title = title + ": " + state.player;
+  var html = tpl;
+  html = html.split("{{TITLE}}").join(title);
+  html = html.split("{{PLAYER}}").join(state.player);
+  html = html.split("{{PLAYER_JS}}").join(JSON.stringify(state.player));
+  html = html.split("{{COLOR}}").join(state.color);
+  html = html.split("{{COLOR_JS}}").join(JSON.stringify(state.color));
+  html = html.split("{{THEME}}").join(state.theme);
+  html = html.split("{{THEME_JS}}").join(JSON.stringify(state.theme));
+  html = html.split("{{BG}}").join(th.bg);
+  html = html.split("{{BG_JS}}").join(JSON.stringify(th.bg));
+  html = html.split("{{ACCENT}}").join(th.accent);
+  html = html.split("{{ACCENT_JS}}").join(JSON.stringify(th.accent));
+  return html;
+}
+
+function generate() {
+  var tpl = TEMPLATES[state.type];
+  if (!tpl) { bot("Okänd mall.", null); return; }
+  try {
+    state.html = fill(tpl);
+    document.getElementById("code").value = state.html;
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    blobUrl = URL.createObjectURL(new Blob([state.html], {type:"text/html"}));
+    var prev = document.getElementById("preview");
+    prev.src = blobUrl;
+    document.getElementById("preview-wrap").style.display = "flex";
+    document.getElementById("code-wrap").style.display = "none";
+    ["btn-dl","btn-prev","btn-code","btn-open"].forEach(function(id){ document.getElementById(id).disabled = false; });
+    document.getElementById("status").textContent = "Klart! " + state.type + " · " + state.player + " · " + (THEMES[state.theme]||{}).label;
+    bot("✅ Spelet är genererat! Använd knapparna till höger: Förhandsgranska, Ladda ner eller Öppna.\nSkriv 'ny' för att bygga ett till.", null);
+    state.step = "done";
+  } catch (e) {
+    bot("Fel vid generering: " + e.message, null);
+    console.error(e);
+  }
+}
+
+function submitName() {
+  var v = (inp.value || "").trim() || "Benny";
+  inp.value = "";
+  if (state.step === "done" && /^ny$/i.test(v)) { reset(); return; }
+  if (state.step !== "name") {
+    if (/^ny$/i.test(v)) reset();
+    return;
+  }
+  user(v);
+  state.player = v.slice(0, 20);
+  bot("Genererar " + state.type + " åt " + state.player + "...", null);
+  setTimeout(generate, 200);
+}
+
+function reset() {
+  state = {step:"type", type:null, theme:null, player:"Benny", color:"#e67e22", html:""};
+  chat.innerHTML = "";
+  if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+  document.getElementById("preview").src = "about:blank";
+  document.getElementById("code").value = "";
+  ["btn-dl","btn-prev","btn-code","btn-open"].forEach(function(id){ document.getElementById(id).disabled = true; });
+  document.getElementById("status").textContent = "Välj typ i chatten för att börja.";
+  start();
+}
+
+function start() {
+  bot("Hej! Jag är en lokal mallmotor (ingen moln-AI). Vilken typ av retrospel vill du bygga?", TYPES.map(function(t){
+    return {id:t.id, label:t.label + " — " + t.desc};
+  }));
+}
+
+document.getElementById("send").onclick = submitName;
+inp.onkeydown = function(e){ if(e.key==="Enter") submitName(); };
+document.getElementById("btn-reset").onclick = reset;
+document.getElementById("btn-dl").onclick = function(){
+  if(!state.html)return;
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([state.html],{type:"text/html"}));
+  a.download=(state.type||"retro")+"-"+state.player+".html";
+  a.click();
+};
+document.getElementById("btn-prev").onclick = function(){
+  document.getElementById("code-wrap").style.display="none";
+  document.getElementById("preview").style.display="block";
+  if(blobUrl) document.getElementById("preview").src=blobUrl;
+};
+document.getElementById("btn-code").onclick = function(){
+  document.getElementById("preview").style.display="none";
+  document.getElementById("code-wrap").style.display="block";
+};
+document.getElementById("btn-open").onclick = function(){
+  if(blobUrl) window.open(blobUrl, "_blank");
+};
+
+try { start(); }
+catch(e){ document.getElementById("status").textContent = "Fel: "+e.message; }
+</script>
+</body>
+</html>
