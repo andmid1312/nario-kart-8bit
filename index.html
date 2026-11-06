@@ -1,1 +1,1367 @@
-I will load it properly
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>Nario Kart 8Bit</title>
+<style>
+
+*{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-tap-highlight-color:transparent;}
+body{background:#07090e;color:#fff;font-family:'Courier New',Courier,monospace;min-height:100vh;
+display:flex;flex-direction:column;align-items:center;padding:10px;overflow-x:hidden;}
+h1{color:#ffcc00;text-shadow:3px 3px #000;font-size:clamp(18px,4vw,26px);margin:4px 0 10px;text-align:center;}
+.shell{width:100%;max-width:840px;border:4px solid #ffcc00;border-radius:10px;
+box-shadow:0 0 24px rgba(255,204,0,.35);background:#0b0e14;overflow:hidden;}
+.screen{display:none;padding:14px;min-height:420px;}
+.screen.active{display:block;}
+#screen-race{padding:0;min-height:0;}
+#screen-race.active{display:block;}
+#char-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px;}
+.char-card{background:#151922;border:3px solid #444;color:#fff;padding:8px;cursor:pointer;
+font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.char-card.selected{border-color:#ffcc00;box-shadow:0 0 12px rgba(255,204,0,.4);}
+.char-card small{font-size:10px;color:#aaa;text-align:center;line-height:1.2;}
+#char-info{background:rgba(0,0,0,.6);border:2px solid #ffcc00;padding:10px;margin-bottom:10px;}
+#char-info .ability{color:#ffe600;margin-top:6px;}
+#char-info .line{color:#9f9;font-style:italic;margin-top:6px;}
+#track-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0;}
+.track-card{background:#151922;border:3px solid #444;color:#fff;padding:16px 10px;cursor:pointer;
+font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.track-card.selected{border-color:#ffcc00;}
+.track-card .emoji{font-size:34px;}
+.track-card small{color:#aaa;text-align:center;font-size:11px;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px;}
+.btn{background:#222;border:3px solid #fff;color:#fff;font-family:inherit;font-weight:bold;
+font-size:14px;padding:12px 18px;cursor:pointer;}
+.btn:hover,.btn:active{background:#ffcc00;color:#000;}
+.btn.primary{background:#d9534f;border-color:#ffaaaa;}
+.btn.green{background:#2ecc71;border-color:#fff;color:#000;}
+#game-container{position:relative;width:100%;background:#151922;}
+#race-canvas{width:100%;height:auto;display:block;image-rendering:pixelated;}
+.hud{position:absolute;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;
+flex-wrap:wrap;gap:6px;pointer-events:none;font-weight:bold;text-shadow:2px 2px #000;font-size:13px;}
+.hud-box{background:rgba(0,0,0,.75);padding:5px 10px;border:2px solid #fff;border-radius:4px;}
+#hud-track{border-color:#ffcc00;color:#ffcc00;}
+#touch-controls{display:none;justify-content:space-between;width:100%;max-width:840px;padding:10px 6px;gap:8px;}
+.btn-group{display:flex;gap:8px;flex-wrap:wrap;}
+.tbtn{width:62px;height:62px;background:#222;border:3px solid #fff;color:#fff;font-size:16px;
+font-weight:bold;border-radius:50%;display:flex;align-items:center;justify-content:center;
+touch-action:manipulation;font-family:inherit;cursor:pointer;}
+.tbtn:active{background:#ffcc00;color:#000;}
+.tbtn.action{background:#d9534f;border-color:#ffaaaa;}
+.tbtn.gas{background:#5cb85c;}
+.tbtn.drift{background:#f0ad4e;color:#000;}
+#result-list{list-style:none;margin:16px auto;max-width:320px;text-align:left;font-size:18px;}
+#result-list li{padding:6px 0;border-bottom:1px dashed #444;}
+.help{margin-top:8px;font-size:11px;color:#888;text-align:center;max-width:840px;line-height:1.4;}
+#boot-error{display:none;background:#500;color:#fff;border:2px solid #f66;padding:10px;margin:8px;max-width:840px;font-size:13px;}
+
+</style>
+</head>
+<body>
+<h1>NARIO KART 8BIT</h1>
+<div id="boot-error"></div>
+
+<div class="shell">
+  <div id="screen-select" class="screen active">
+    <h2 style="color:#ffcc00;margin-bottom:10px;text-align:center">VÄLJ FÖRARE</h2>
+    <div id="char-grid"></div>
+    <div id="char-info"></div>
+    <div class="btn-row">
+      <button type="button" class="btn green" id="btn-to-track">VÄLJ BANA →</button>
+    </div>
+  </div>
+
+  <div id="screen-track" class="screen">
+    <h2 style="color:#ffcc00;margin-bottom:10px;text-align:center">VÄLJ BANA</h2>
+    <div id="track-grid"></div>
+    <div class="btn-row">
+      <button type="button" class="btn" id="btn-back-char">← FÖRARE</button>
+      <button type="button" class="btn primary" id="btn-start-race">STARTA LOPP!</button>
+    </div>
+  </div>
+
+  <div id="screen-race" class="screen">
+    <div id="game-container">
+      <div class="hud">
+        <div class="hud-box" id="hud-item">ITEM: —</div>
+        <div class="hud-box" id="hud-lap">VARV: 1 / 3</div>
+        <div class="hud-box" id="hud-pos">POS: 1:a</div>
+        <div class="hud-box" id="hud-track">—</div>
+      </div>
+      <canvas id="race-canvas" width="800" height="450"></canvas>
+    </div>
+  </div>
+
+  <div id="screen-result" class="screen" style="text-align:center">
+    <h2 id="result-title" style="color:#ffcc00;font-size:28px">MÅLGÅNG!</h2>
+    <ol id="result-list"></ol>
+    <div class="btn-row">
+      <button type="button" class="btn" id="btn-again">NYTT LOPP</button>
+      <button type="button" class="btn green" id="btn-to-select">FÖRARE</button>
+    </div>
+  </div>
+</div>
+
+<div id="touch-controls">
+  <div class="btn-group">
+    <button type="button" class="tbtn" id="btn-left">◀</button>
+    <button type="button" class="tbtn" id="btn-right">▶</button>
+    <button type="button" class="tbtn" id="btn-brake">⬇</button>
+  </div>
+  <div class="btn-group">
+    <button type="button" class="tbtn drift" id="btn-drift">DRIFT</button>
+    <button type="button" class="tbtn action" id="btn-item">🎁</button>
+    <button type="button" class="tbtn gas" id="btn-gas">GAS</button>
+  </div>
+</div>
+
+<p class="help">
+  WASD / pilar = styr · MELLANSLAG = drift · SHIFT / E = föremål<br>
+  Touch-knappar på mobil · 🍌 Banan · 💉 Vaccin Boost · 💊 Alvedon Sköld
+</p>
+
+<script>
+
+// Polyfill roundRect for older browsers
+(function(){
+  if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+      r = Math.min(r||0, w/2, h/2);
+      this.moveTo(x+r,y);
+      this.arcTo(x+w,y,x+w,y+h,r);
+      this.arcTo(x+w,y+h,x,y+h,r);
+      this.arcTo(x,y+h,x,y,r);
+      this.arcTo(x,y,x+w,y,r);
+      this.closePath();
+    };
+  }
+})();
+
+</script>
+<script>
+// Racers from user's Nario Kart 8Bit prototype (+ Benny4real details)
+window.KART_CHARS = [
+  {
+    id: 'benny',
+    name: 'Benny',
+    fullName: 'Benny4real',
+    desc: 'Stora svarta fyrkantiga glasögon, jeans & t-shirt. Skånsk dialekt.',
+    color: '#e67e22',
+    accent: '#0a0a0a',
+    jeans: '#3b5a9a',
+    shirt: '#f5f5f5',
+    skin: '#f0c9a0',
+    hair: '#3d2914',
+    speed: 1.0,
+    accel: 1.05,
+    handling: 1.0,
+    weight: 1.0,
+    lines: [
+      'Nu åger vi, ba!',
+      'Hörru, va sjutton!',
+      'Kom igen grabbasar!',
+      'Det där va mög!',
+      'Ba lugna er lite!',
+      'Skåne i ledningen, ba!',
+      'Va e de här för snurr?',
+      'Jag kör som en gud, hörru!'
+    ],
+    ability: 'Skånsk turbo — kort extra boost efter lyckad drift',
+    abilityId: 'skansk'
+  },
+  {
+    id: 'ferdi',
+    name: 'Ferdi',
+    fullName: 'Ferdi',
+    desc: 'Kallblodig strateg. Håller linjen i kurvorna.',
+    color: '#34495e',
+    accent: '#95a5a6',
+    jeans: '#1a252f',
+    shirt: '#5d6d7e',
+    skin: '#e0b090',
+    hair: '#1c2833',
+    speed: 0.98,
+    accel: 1.0,
+    handling: 1.15,
+    weight: 1.05,
+    lines: ['Håll linjen.', 'Beräknat.', 'Inte så fort…'],
+    ability: 'Stållinje — bättre grepp i kurvor',
+    abilityId: 'steel'
+  },
+  {
+    id: 'annie',
+    name: 'Annie',
+    fullName: 'Annie',
+    desc: 'Het tempererad racer. Älskar att knuffa och attackera.',
+    color: '#e74c3c',
+    accent: '#f1c40f',
+    jeans: '#922b21',
+    shirt: '#ff6b6b',
+    skin: '#f5cba7',
+    hair: '#7b241c',
+    speed: 1.05,
+    accel: 1.1,
+    handling: 0.95,
+    weight: 0.9,
+    lines: ['Kör om mig om ni kan!', 'Het på banan!', 'Aj aj aj!'],
+    ability: 'Het knuff — starkare kollisioner',
+    abilityId: 'hotbump'
+  },
+  {
+    id: 'balto',
+    name: 'Balto',
+    fullName: 'Balto',
+    desc: 'Grön & snabb. Lever för raksträckor.',
+    color: '#2ecc71',
+    accent: '#27ae60',
+    jeans: '#145a32',
+    shirt: '#58d68d',
+    skin: '#d5a06a',
+    hair: '#0e6655',
+    speed: 1.1,
+    accel: 0.95,
+    handling: 0.9,
+    weight: 0.95,
+    lines: ['Full gas!', 'Grönt ljus!', 'Whoosh!'],
+    ability: 'Raketben — högre toppfart på raka',
+    abilityId: 'rocket'
+  },
+  {
+    id: 'bobban',
+    name: 'Bobban',
+    fullName: 'Bobban',
+    desc: 'Från gängets egna spelvärld. Oförutsägbar & kämparanda.',
+    color: '#9b59b6',
+    accent: '#8e44ad',
+    jeans: '#4a235a',
+    shirt: '#bb8fce',
+    skin: '#f0c9a0',
+    hair: '#4a235a',
+    speed: 1.0,
+    accel: 1.0,
+    handling: 1.05,
+    weight: 1.0,
+    lines: ['Bobban kör!', 'Kombat-stil!', 'Purple power!'],
+    ability: 'Kombat-aura — föremål laddas snabbare',
+    abilityId: 'kombat'
+  }
+];
+
+window.KART_ITEMS = [
+  { id: 'banan', name: 'Banan', icon: '🍌', desc: 'Lägger skal som snurrar motståndare' },
+  { id: 'vaccin', name: 'Vaccin Boost', icon: '💉', desc: 'Kraftig fartökning en stund' },
+  { id: 'alvedon', name: 'Alvedon Sköld', icon: '💊', desc: 'Skyddar mot ett hit + liten heal-boost' }
+];
+
+</script>
+<script>
+// Two tracks: Prismabanan (rainbow) + Växjöringen (Sverige/Växjö)
+window.TrackGen = {
+  SIZE: 1024,
+
+  generate(kind) {
+    if (kind === 'vaxjo') return this._vaxjo();
+    return this._prisma();
+  },
+
+  _baseGrass(ctx, S, c1, c2) {
+    ctx.fillStyle = c1;
+    ctx.fillRect(0, 0, S, S);
+    for (let y = 0; y < S; y += 32) {
+      for (let x = 0; x < S; x += 32) {
+        if (((x + y) / 32) % 2 < 1) {
+          ctx.fillStyle = c2;
+          ctx.fillRect(x, y, 32, 32);
+        }
+      }
+    }
+  },
+
+  _ringRoad(ctx, S, opts) {
+    const { cx, cy, outerR, innerR, sx, sy, asphalt, edge, dash, rainbow } = opts;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(sx, sy);
+
+    if (rainbow) {
+      // Rainbow asphalt bands
+      const bands = ['#ff0040', '#ff7f00', '#ffe600', '#00e676', '#2979ff', '#aa00ff'];
+      for (let b = 0; b < bands.length; b++) {
+        const o = outerR - (b * (outerR - innerR) / bands.length);
+        const i = outerR - ((b + 1) * (outerR - innerR) / bands.length);
+        ctx.beginPath();
+        ctx.arc(0, 0, o, 0, Math.PI * 2);
+        ctx.arc(0, 0, i, 0, Math.PI * 2, true);
+        ctx.fillStyle = bands[b];
+        ctx.fill('evenodd');
+      }
+      // Darken slightly for driveability look
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.beginPath();
+      ctx.arc(0, 0, outerR, 0, Math.PI * 2);
+      ctx.arc(0, 0, innerR, 0, Math.PI * 2, true);
+      ctx.fill('evenodd');
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, outerR, 0, Math.PI * 2);
+      ctx.arc(0, 0, innerR, 0, Math.PI * 2, true);
+      ctx.fillStyle = asphalt;
+      ctx.fill('evenodd');
+    }
+
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = edge;
+    ctx.beginPath();
+    ctx.arc(0, 0, outerR - 3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, innerR + 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.setLineDash([24, 20]);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = dash;
+    ctx.beginPath();
+    ctx.arc(0, 0, (outerR + innerR) / 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  },
+
+  _finishAndBoxes(ctx, S, cx, cy, midR, sx, sy) {
+    const startAngle = Math.PI / 2;
+    const stx = cx + Math.cos(startAngle) * midR * sx;
+    const sty = cy + Math.sin(startAngle) * midR * sy;
+    const nx = Math.cos(startAngle), ny = Math.sin(startAngle);
+    const tx = -ny, ty = nx;
+    for (let i = -40; i < 40; i += 8) {
+      for (let j = -6; j < 6; j += 8) {
+        const px = stx + tx * i * sx + nx * j;
+        const py = sty + ty * i * sy + ny * j;
+        ctx.fillStyle = ((i + j) / 8) % 2 === 0 ? '#fff' : '#111';
+        ctx.fillRect(px - 4, py - 4, 8, 8);
+      }
+    }
+
+    const boxes = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.35;
+      const bx = cx + Math.cos(a) * midR * sx;
+      const by = cy + Math.sin(a) * midR * sy;
+      boxes.push({ x: bx, y: by, alive: true, respawn: 0 });
+      ctx.fillStyle = '#5a9fff';
+      ctx.fillRect(bx - 8, by - 8, 16, 16);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 12px Courier New';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('?', bx, by + 1);
+    }
+
+    const waypoints = [];
+    for (let i = 0; i < 64; i++) {
+      const a = Math.PI / 2 + (i / 64) * Math.PI * 2;
+      waypoints.push({
+        x: cx + Math.cos(a) * midR * sx,
+        y: cy + Math.sin(a) * midR * sy,
+        a
+      });
+    }
+    return { boxes, waypoints, start: waypoints[0] };
+  },
+
+  _prisma() {
+    const S = this.SIZE;
+    const canvas = document.createElement('canvas');
+    canvas.width = S; canvas.height = S;
+    const ctx = canvas.getContext('2d');
+    // Space background
+    ctx.fillStyle = '#0b0e14';
+    ctx.fillRect(0, 0, S, S);
+    for (let i = 0; i < 400; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.9})`;
+      ctx.fillRect(Math.random() * S, Math.random() * S, 2, 2);
+    }
+    const cx = S / 2, cy = S / 2, sx = 1.15, sy = 0.85;
+    const outerR = 420, innerR = 260, midR = (outerR + innerR) / 2;
+    this._ringRoad(ctx, S, {
+      cx, cy, outerR, innerR, sx, sy,
+      asphalt: '#4a4a52', edge: '#ffffff', dash: '#ffe600', rainbow: true
+    });
+    const { boxes, waypoints, start } = this._finishAndBoxes(ctx, S, cx, cy, midR, sx, sy);
+    // Neon glow rings
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(sx, sy);
+    ctx.strokeStyle = 'rgba(255,0,200,0.35)';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(0, 0, outerR + 8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    const imageData = ctx.getImageData(0, 0, S, S);
+    return {
+      id: 'prisma',
+      name: 'Prismabanan',
+      subtitle: 'Regnbågsslinga i rymden',
+      canvas,
+      imageData,
+      size: S, cx, cy, waypoints, boxes, start,
+      skyTop: '#050510', skyMid: '#1a0a3a', skyBot: '#4a2080',
+      onRoad: (x, y) => this._onColoredRoad(imageData, S, x, y)
+    };
+  },
+
+  _vaxjo() {
+    const S = this.SIZE;
+    const canvas = document.createElement('canvas');
+    canvas.width = S; canvas.height = S;
+    const ctx = canvas.getContext('2d');
+    this._baseGrass(ctx, S, '#2e7d32', '#388e3c');
+    // Swedish blue lakes blobs
+    ctx.fillStyle = '#1565c0';
+    ctx.beginPath(); ctx.ellipse(200, 300, 80, 50, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(780, 700, 90, 55, -0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(700, 220, 60, 40, 0.5, 0, Math.PI * 2); ctx.fill();
+    // Yellow Swedish accents (fields)
+    ctx.fillStyle = '#f1c40f';
+    ctx.globalAlpha = 0.25;
+    ctx.fillRect(100, 700, 120, 80);
+    ctx.fillRect(850, 150, 100, 70);
+    ctx.globalAlpha = 1;
+
+    const cx = S / 2, cy = S / 2, sx = 1.15, sy = 0.85;
+    const outerR = 420, innerR = 260, midR = (outerR + innerR) / 2;
+    this._ringRoad(ctx, S, {
+      cx, cy, outerR, innerR, sx, sy,
+      asphalt: '#555560', edge: '#ffcc00', dash: '#ffffff', rainbow: false
+    });
+    // Växjö sign near start
+    ctx.fillStyle = '#0d47a1';
+    ctx.fillRect(cx - 40, cy + midR * sy - 50, 80, 28);
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = 'bold 14px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('VÄXJÖ', cx, cy + midR * sy - 32);
+
+    const { boxes, waypoints, start } = this._finishAndBoxes(ctx, S, cx, cy, midR, sx, sy);
+    const imageData = ctx.getImageData(0, 0, S, S);
+    return {
+      id: 'vaxjo',
+      name: 'Växjöringen',
+      subtitle: 'Smålandskretsen – start i Växjö',
+      canvas,
+      imageData,
+      size: S, cx, cy, waypoints, boxes, start,
+      skyTop: '#1a3a6e', skyMid: '#4a8fd4', skyBot: '#87ceeb',
+      onRoad: (x, y) => this._onAsphalt(imageData, S, x, y)
+    };
+  },
+
+  _onAsphalt(imageData, S, x, y) {
+    const ix = Math.floor(x) & (S - 1);
+    const iy = Math.floor(y) & (S - 1);
+    const i = (iy * S + ix) * 4;
+    const r = imageData.data[i], g = imageData.data[i + 1], b = imageData.data[i + 2];
+    return Math.abs(r - g) < 25 && r > 45 && r < 130;
+  },
+
+  _onColoredRoad(imageData, S, x, y) {
+    const ix = Math.floor(x) & (S - 1);
+    const iy = Math.floor(y) & (S - 1);
+    const i = (iy * S + ix) * 4;
+    const r = imageData.data[i], g = imageData.data[i + 1], b = imageData.data[i + 2];
+    // Not space black / not pure stars
+    const bright = r + g + b;
+    return bright > 80 && !(r < 40 && g < 40 && b < 40);
+  },
+
+  isOnRoad(track, x, y) {
+    return track.onRoad(x, y);
+  }
+};
+
+</script>
+<script>
+// Mode-7 projection + 8-bit kart sprites (Nario Kart vibe)
+window.KartRenderer = {
+  drawWorld(ctx, W, H, cam, track, karts, player) {
+    const horizon = Math.floor(H * 0.38);
+    const sky = ctx.createLinearGradient(0, 0, 0, horizon);
+    sky.addColorStop(0, track.skyTop || '#1a3a6e');
+    sky.addColorStop(0.55, track.skyMid || '#4a8fd4');
+    sky.addColorStop(1, track.skyBot || '#87ceeb');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, horizon);
+
+    // Stars for prisma
+    if (track.id === 'prisma') {
+      ctx.fillStyle = '#fff';
+      for (let i = 0; i < 40; i++) {
+        const sx = (i * 97 + cam.a * 40) % W;
+        const sy = (i * 53) % (horizon - 10);
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      for (let i = 0; i < 5; i++) {
+        const cx = ((i * 180 + cam.x * 0.02) % (W + 100)) - 50;
+        const cy = 30 + (i % 3) * 25;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 50, 18, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + 30, cy + 5, 35, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    const img = track.imageData.data;
+    const S = track.size;
+    const camX = cam.x, camY = cam.y, camA = cam.a;
+    const cos = Math.cos(camA), sin = Math.sin(camA);
+    const fov = 320, camH = 48, scale = 180;
+    const imageData = ctx.createImageData(W, H - horizon);
+    const out = imageData.data;
+
+    for (let screenY = 0; screenY < H - horizon; screenY++) {
+      const row = screenY + 1;
+      const z = (camH * scale) / row;
+      const pxStep = z / fov;
+      const rowBase = screenY * W * 4;
+      let worldX = camX + cos * z - sin * (W / 2) * pxStep;
+      let worldY = camY + sin * z + cos * (W / 2) * pxStep;
+      const dx = sin * pxStep, dy = -cos * pxStep;
+      for (let screenX = 0; screenX < W; screenX++) {
+        const ix = Math.floor(worldX) & (S - 1);
+        const iy = Math.floor(worldY) & (S - 1);
+        const si = (iy * S + ix) * 4;
+        const oi = rowBase + screenX * 4;
+        out[oi] = img[si];
+        out[oi + 1] = img[si + 1];
+        out[oi + 2] = img[si + 2];
+        out[oi + 3] = 255;
+        worldX += dx; worldY += dy;
+      }
+    }
+    ctx.putImageData(imageData, 0, horizon);
+
+    // Hazards (bananas)
+    if (cam.hazards) {
+      for (const h of cam.hazards) {
+        if (!h.alive) continue;
+        const dx = h.x - camX, dy = h.y - camY;
+        const rx = dx * cos + dy * sin;
+        const ry = -dx * sin + dy * cos;
+        if (rx < 10) continue;
+        const scaleY = (camH * scale) / rx;
+        const screenY = horizon + scaleY;
+        const screenX = W / 2 + (ry / rx) * fov;
+        const spr = Math.max(0.2, Math.min(1.8, 220 / rx));
+        ctx.font = `${Math.floor(22 * spr)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('🍌', screenX, screenY);
+      }
+    }
+
+    const projected = [];
+    for (const k of karts) {
+      const dx = k.x - camX, dy = k.y - camY;
+      const rx = dx * cos + dy * sin;
+      const ry = -dx * sin + dy * cos;
+      if (rx < 8) continue;
+      const scaleY = (camH * scale) / rx;
+      const screenY = horizon + scaleY;
+      const screenX = W / 2 + (ry / rx) * fov;
+      const sprScale = Math.max(0.15, Math.min(2.2, 280 / rx));
+      projected.push({ k, screenX, screenY, sprScale, depth: rx });
+    }
+    projected.sort((a, b) => b.depth - a.depth);
+    for (const p of projected) {
+      this.drawKart(ctx, p.k, p.screenX, p.screenY, p.sprScale, camA);
+      if (p.k.bubble && p.k.bubbleT > 0) {
+        this.drawBubble(ctx, p.screenX, p.screenY - 42 * p.sprScale, p.k.bubble, p.sprScale);
+      }
+    }
+    this.drawMinimap(ctx, W, H, track, karts, player);
+  },
+
+  drawKart(ctx, k, x, y, s, camA) {
+    const ch = k.char;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(0, 4 * s, 18 * s, 6 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    let rel = k.a - camA;
+    while (rel > Math.PI) rel -= Math.PI * 2;
+    while (rel < -Math.PI) rel += Math.PI * 2;
+    const lean = Math.max(-1, Math.min(1, rel * 1.5 + (k.driftDir || 0) * 0.4));
+
+    // 8-bit blocky kart
+    ctx.fillStyle = ch.color;
+    ctx.fillRect(-16 * s + lean * 2, -10 * s, 32 * s, 16 * s);
+    ctx.fillStyle = ch.accent;
+    ctx.fillRect(-14 * s, -4 * s, 28 * s, 4 * s);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-18 * s, -8 * s, 6 * s, 10 * s);
+    ctx.fillRect(12 * s, -8 * s, 6 * s, 10 * s);
+    ctx.fillRect(-16 * s, 4 * s, 6 * s, 8 * s);
+    ctx.fillRect(10 * s, 4 * s, 6 * s, 8 * s);
+
+    ctx.fillStyle = ch.shirt;
+    ctx.fillRect(-8 * s + lean * 3, -22 * s, 16 * s, 14 * s);
+    ctx.fillStyle = ch.jeans;
+    ctx.fillRect(-7 * s + lean * 2, -10 * s, 14 * s, 8 * s);
+    ctx.fillStyle = ch.skin;
+    ctx.beginPath();
+    ctx.arc(lean * 4, -28 * s, 9 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = ch.hair;
+    ctx.beginPath();
+    ctx.arc(lean * 4, -31 * s, 8 * s, Math.PI, 0);
+    ctx.fill();
+
+    if (ch.id === 'benny') {
+      ctx.fillStyle = '#0a0a0a';
+      const gx = lean * 4 - 9 * s, gy = -31 * s;
+      ctx.fillRect(gx, gy, 8 * s, 7 * s);
+      ctx.fillRect(gx + 10 * s, gy, 8 * s, 7 * s);
+      ctx.fillRect(gx + 7.5 * s, gy + 2 * s, 3 * s, 2 * s);
+      ctx.fillStyle = 'rgba(100,180,255,0.3)';
+      ctx.fillRect(gx + 1 * s, gy + 1 * s, 3 * s, 2 * s);
+      ctx.fillRect(gx + 11 * s, gy + 1 * s, 3 * s, 2 * s);
+    } else {
+      ctx.fillStyle = '#111';
+      ctx.fillRect(lean * 4 - 4 * s, -29 * s, 2.5 * s, 2.5 * s);
+      ctx.fillRect(lean * 4 + 2 * s, -29 * s, 2.5 * s, 2.5 * s);
+    }
+
+    // Shield bubble
+    if (k.shieldT > 0) {
+      ctx.strokeStyle = 'rgba(100,200,255,0.8)';
+      ctx.lineWidth = 2 * s;
+      ctx.beginPath();
+      ctx.arc(0, -12 * s, 22 * s, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (k.drifting && k.speed > 2) {
+      ctx.fillStyle = k.turboCharge > 0.6 ? '#ffee55' : '#ff9944';
+      for (let i = 0; i < 3; i++) {
+        ctx.fillRect((-20 - Math.random() * 6) * s, (Math.random() * 5 - 2) * s, 3 * s, 3 * s);
+        ctx.fillRect((17 + Math.random() * 6) * s, (Math.random() * 5 - 2) * s, 3 * s, 3 * s);
+      }
+    }
+    if (k.boostT > 0) {
+      ctx.fillStyle = '#55aaff';
+      ctx.beginPath();
+      ctx.moveTo(-8 * s, 6 * s);
+      ctx.lineTo(0, (14 + Math.random() * 8) * s);
+      ctx.lineTo(8 * s, 6 * s);
+      ctx.fill();
+    }
+
+    // Name tag (8-bit)
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.max(8, 10 * Math.min(s, 1.3))}px Courier New`;
+    ctx.textAlign = 'center';
+    ctx.fillText(ch.name, 0, -40 * s);
+    ctx.restore();
+  },
+
+  drawBubble(ctx, x, y, text, s) {
+    ctx.save();
+    ctx.font = `bold ${Math.max(10, 11 * Math.min(s, 1.4))}px Courier New`;
+    const tw = ctx.measureText(text).width;
+    const pad = 8, bw = tw + pad * 2, bh = 22;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x - bw / 2, y - bh, bw, bh, 6);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y); ctx.lineTo(x, y + 8); ctx.lineTo(x + 6, y); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y - bh / 2);
+    ctx.restore();
+  },
+
+  drawMinimap(ctx, W, H, track, karts, player) {
+    const ms = 110, mx = W - ms - 12, my = 12;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#0b0e14';
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(mx - 4, my - 4, ms + 8, ms + 8, 6);
+    ctx.fill(); ctx.stroke();
+    ctx.drawImage(track.canvas, mx, my, ms, ms);
+    const scale = ms / track.size;
+    for (const k of karts) {
+      ctx.fillStyle = k === player ? '#fff' : k.char.color;
+      ctx.beginPath();
+      ctx.arc(mx + k.x * scale, my + k.y * scale, k === player ? 4 : 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  },
+
+  drawCharPortrait(ctx, ch, x, y, scale) {
+    const s = scale || 1;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = ch.color;
+    ctx.fillRect(-28 * s, -8 * s, 56 * s, 20 * s);
+    ctx.fillStyle = ch.shirt;
+    ctx.fillRect(-18 * s, -18 * s, 36 * s, 28 * s);
+    ctx.fillStyle = ch.jeans;
+    ctx.fillRect(-16 * s, 8 * s, 32 * s, 24 * s);
+    ctx.fillStyle = ch.skin;
+    ctx.beginPath();
+    ctx.arc(0, -30 * s, 20 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = ch.hair;
+    ctx.beginPath();
+    ctx.arc(0, -36 * s, 18 * s, Math.PI, 0);
+    ctx.fill();
+    if (ch.id === 'benny') {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(-17 * s, -36 * s, 15 * s, 13 * s);
+      ctx.fillRect(2 * s, -36 * s, 15 * s, 13 * s);
+      ctx.fillRect(-4 * s, -32 * s, 8 * s, 4 * s);
+      ctx.fillStyle = 'rgba(120,190,255,0.35)';
+      ctx.fillRect(-15 * s, -34 * s, 5 * s, 4 * s);
+      ctx.fillRect(4 * s, -34 * s, 5 * s, 4 * s);
+    } else {
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-8 * s, -32 * s, 4 * s, 4 * s);
+      ctx.fillRect(4 * s, -32 * s, 4 * s, 4 * s);
+    }
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 2 * s;
+    ctx.beginPath();
+    ctx.arc(0, -26 * s, 7 * s, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+</script>
+<script>
+/* Nario Kart 8Bit — original kart racer (no Nintendo IP) */
+(function () {
+  const W = 800, H = 450;
+  const TOTAL_LAPS = 3;
+  const ITEM_IDS = ['banan', 'vaccin', 'alvedon'];
+
+  const state = {
+    screen: 'select', // select | track | race | result
+    selectedChar: 0,
+    selectedTrack: 'prisma',
+    track: null,
+    karts: [],
+    player: null,
+    hazards: [],
+    raceTime: 0,
+    finished: false,
+    countdown: 3,
+    countdownT: 0,
+    placeNames: ['1:a', '2:a', '3:e', '4:e', '5:e']
+  };
+
+  const input = {
+    up: false, down: false, left: false, right: false,
+    drift: false, item: false, itemPressed: false,
+    padConnected: false
+  };
+
+  let canvas, ctx, lastTs = 0;
+  let touchEls = {};
+
+  function $(id) { return document.getElementById(id); }
+
+  function init() {
+    try {
+      canvas = $('race-canvas');
+      if (!canvas) throw new Error('Saknar canvas');
+      ctx = canvas.getContext('2d');
+      canvas.width = W; canvas.height = H;
+      bindInput();
+      buildSelect();
+      buildTrackSelect();
+      showScreen('select');
+      requestAnimationFrame(loop);
+      var errEl = document.getElementById('boot-error');
+      if (errEl) errEl.style.display = 'none';
+    } catch (err) {
+      console.error(err);
+      var errEl = document.getElementById('boot-error');
+      if (errEl) {
+        errEl.style.display = 'block';
+        errEl.textContent = 'Fel vid start: ' + (err && err.message ? err.message : err);
+      }
+    }
+  }
+
+  function showScreen(name) {
+    state.screen = name;
+    ['select', 'track', 'race', 'result'].forEach(s => {
+      const el = $(`screen-${s}`);
+      if (el) el.classList.toggle('active', s === name);
+    });
+    const touch = $('touch-controls');
+    if (touch) touch.style.display = name === 'race' ? 'flex' : 'none';
+  }
+
+
+  function buildSelect() {
+    const grid = $('char-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    window.KART_CHARS.forEach((ch, i) => {
+      const card = document.createElement('button');
+      card.className = 'char-card' + (i === state.selectedChar ? ' selected' : '');
+      card.innerHTML = `
+        <canvas width="120" height="120" data-i="${i}"></canvas>
+        <strong style="color:${ch.color}">${ch.name}</strong>
+        <small>${ch.ability}</small>`;
+      card.onclick = () => {
+        state.selectedChar = i;
+        buildSelect();
+        updateSelectInfo();
+      };
+      grid.appendChild(card);
+      const c = card.querySelector('canvas');
+      const cctx = c.getContext('2d');
+      cctx.fillStyle = '#151922';
+      cctx.fillRect(0, 0, 120, 120);
+      KartRenderer.drawCharPortrait(cctx, ch, 60, 70, 1.1);
+    });
+    updateSelectInfo();
+  }
+
+  function updateSelectInfo() {
+    const ch = window.KART_CHARS[state.selectedChar];
+    const info = $('char-info');
+    if (!info || !ch) return;
+    info.innerHTML = `<h2 style="color:${ch.color}">${ch.fullName}</h2>
+      <p>${ch.desc}</p>
+      <p class="ability">⚡ ${ch.ability}</p>
+      <p class="line">"${ch.lines[0]}"</p>`;
+  }
+
+  function buildTrackSelect() {
+    const grid = $('track-grid');
+    if (!grid) return;
+    const tracks = [
+      { id: 'prisma', name: 'Prismabanan', sub: 'Regnbågsslinga i rymden', emoji: '🌈' },
+      { id: 'vaxjo', name: 'Växjöringen', sub: 'Smålandskretsen – start i Växjö', emoji: '🇸🇪' }
+    ];
+    grid.innerHTML = '';
+    tracks.forEach(t => {
+      const card = document.createElement('button');
+      card.className = 'track-card' + (state.selectedTrack === t.id ? ' selected' : '');
+      card.innerHTML = `<span class="emoji">${t.emoji}</span><strong>${t.name}</strong><small>${t.sub}</small>`;
+      card.onclick = () => { state.selectedTrack = t.id; buildTrackSelect(); };
+      grid.appendChild(card);
+    });
+  }
+
+  function startRace() {
+    state.track = TrackGen.generate(state.selectedTrack);
+    state.hazards = [];
+    state.raceTime = 0;
+    state.finished = false;
+    state.countdown = 3;
+    state.countdownT = 1;
+    const wp0 = state.track.waypoints[0];
+    const wp1 = state.track.waypoints[1];
+    const startA = Math.atan2(wp1.y - wp0.y, wp1.x - wp0.x);
+
+    const order = [state.selectedChar];
+    for (let i = 0; i < window.KART_CHARS.length; i++) {
+      if (i !== state.selectedChar) order.push(i);
+    }
+    // max 5 karts
+    while (order.length > 5) order.pop();
+
+    state.karts = order.map((ci, slot) => {
+      const ch = window.KART_CHARS[ci];
+      const lateral = (slot - 2) * 18;
+      const back = slot * 14;
+      const nx = Math.cos(startA + Math.PI / 2);
+      const ny = Math.sin(startA + Math.PI / 2);
+      return makeKart(ch, slot === 0,
+        wp0.x - Math.cos(startA) * back + nx * lateral,
+        wp0.y - Math.sin(startA) * back + ny * lateral,
+        startA);
+    });
+    state.player = state.karts[0];
+    showScreen('race');
+    say(state.player, state.player.char.lines[0]);
+  }
+
+  function makeKart(ch, isPlayer, x, y, a) {
+    return {
+      char: ch, isPlayer, x, y, a,
+      speed: 0, maxSpeed: 5.2 * ch.speed,
+      accel: 0.08 * ch.accel, friction: 0.02,
+      turnRate: 0.045 * ch.handling,
+      drifting: false, driftDir: 0, turboCharge: 0,
+      boostT: 0, spinT: 0, shieldT: 0, stunT: 0,
+      item: null, itemCd: 0,
+      wp: 0, lap: 1, progress: 0, finished: false, finishPlace: 0,
+      bubble: '', bubbleT: 0,
+      aiSteer: 0, aiTimer: 0
+    };
+  }
+
+  function say(k, text) {
+    k.bubble = text;
+    k.bubbleT = 2.2;
+  }
+
+  function bindInput() {
+    window.addEventListener('keydown', e => {
+      setKey(e.code, e.key, true);
+      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+      if (state.screen === 'race' && (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE')) {
+        if (!input.itemPressed) { input.item = true; input.itemPressed = true; }
+      }
+    });
+    window.addEventListener('keyup', e => {
+      setKey(e.code, e.key, false);
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') {
+        input.item = false; input.itemPressed = false;
+      }
+    });
+
+    const bindTouch = (id, on, off) => {
+      const el = $(id);
+      if (!el) return;
+      const start = ev => { ev.preventDefault(); on(); };
+      const end = ev => { ev.preventDefault(); off(); };
+      el.addEventListener('touchstart', start, { passive: false });
+      el.addEventListener('touchend', end, { passive: false });
+      el.addEventListener('touchcancel', end, { passive: false });
+      el.addEventListener('mousedown', start);
+      el.addEventListener('mouseup', end);
+      el.addEventListener('mouseleave', end);
+    };
+    bindTouch('btn-left', () => input.left = true, () => input.left = false);
+    bindTouch('btn-right', () => input.right = true, () => input.right = false);
+    bindTouch('btn-gas', () => input.up = true, () => input.up = false);
+    bindTouch('btn-brake', () => input.down = true, () => input.down = false);
+    bindTouch('btn-drift', () => input.drift = true, () => input.drift = false);
+    bindTouch('btn-item', () => { input.item = true; }, () => { input.item = false; input.itemPressed = false; });
+
+    window.addEventListener('gamepadconnected', () => { input.padConnected = true; });
+  }
+
+  function setKey(code, key, down) {
+    if (code === 'ArrowUp' || code === 'KeyW') input.up = down;
+    if (code === 'ArrowDown' || code === 'KeyS') input.down = down;
+    if (code === 'ArrowLeft' || code === 'KeyA') input.left = down;
+    if (code === 'ArrowRight' || code === 'KeyD') input.right = down;
+    if (code === 'Space') input.drift = down;
+  }
+
+  function pollGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const gp = pads && pads[0];
+    if (!gp) return;
+    input.padConnected = true;
+    const lx = gp.axes[0] || 0;
+    if (Math.abs(lx) > 0.25) {
+      input.left = lx < 0;
+      input.right = lx > 0;
+    }
+    if ((gp.buttons[12] && gp.buttons[12].pressed)) input.up = true;
+    if ((gp.buttons[13] && gp.buttons[13].pressed)) input.down = true;
+    if ((gp.buttons[0] && gp.buttons[0].pressed) || (gp.buttons[7] && gp.buttons[7].pressed)) input.up = true; // A / RT
+    if ((gp.buttons[1] && gp.buttons[1].pressed) || (gp.buttons[5] && gp.buttons[5].pressed)) input.drift = true; // B / RB
+    if ((gp.buttons[2] && gp.buttons[2].pressed) || (gp.buttons[4] && gp.buttons[4].pressed)) { // X / LB item
+      if (!input.itemPressed) { input.item = true; input.itemPressed = true; }
+    } else if (!input.drift) {
+      // don't clear itemPressed from keyboard here awkwardly
+    }
+    if (!(gp.buttons[2] && gp.buttons[2].pressed) && !(gp.buttons[4] && gp.buttons[4].pressed)) {
+      // allow re-press
+    }
+  }
+
+  function loop(ts) {
+    const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0.016);
+    lastTs = ts;
+    if (state.screen === 'race') {
+      pollGamepad();
+      updateRace(dt);
+      drawRace();
+      // clear one-shot item flag after processing
+      if (input.item) input.item = false;
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function updateRace(dt) {
+    if (state.countdown > 0) {
+      state.countdownT -= dt;
+      if (state.countdownT <= 0) {
+        state.countdown--;
+        state.countdownT = 1;
+        if (state.countdown === 0) say(state.player, 'Nu åger vi, ba!');
+      }
+      drawRace();
+      return;
+    }
+    if (state.finished) return;
+
+    state.raceTime += dt;
+    for (const k of state.karts) updateKart(k, dt);
+    resolveCollisions();
+    updateHazards(dt);
+    updateBoxes(dt);
+    updatePositions();
+    checkRaceOver();
+  }
+
+  function updateKart(k, dt) {
+    if (k.bubbleT > 0) k.bubbleT -= dt;
+    if (k.boostT > 0) k.boostT -= dt;
+    if (k.shieldT > 0) k.shieldT -= dt;
+    if (k.spinT > 0) { k.spinT -= dt; k.a += dt * 8; k.speed *= 0.9; return; }
+    if (k.stunT > 0) { k.stunT -= dt; k.speed *= 0.95; }
+
+    let gas = false, brake = false, left = false, right = false, drift = false, useItem = false;
+    if (k.isPlayer) {
+      gas = input.up; brake = input.down; left = input.left; right = input.right;
+      drift = input.drift; useItem = input.item;
+    } else {
+      aiControl(k, dt);
+      gas = k._gas; brake = k._brake; left = k._left; right = k._right;
+      drift = k._drift; useItem = k._item;
+    }
+
+    const onRoad = TrackGen.isOnRoad(state.track, k.x, k.y);
+    let maxSp = k.maxSpeed * (onRoad ? 1 : 0.45);
+    if (k.char.abilityId === 'rocket' && onRoad && Math.abs(steerAngleDelta(k)) < 0.2) {
+      maxSp *= 1.08;
+    }
+    if (k.boostT > 0) maxSp *= 1.45;
+
+    if (gas) k.speed = Math.min(k.speed + k.accel * (onRoad ? 1 : 0.4), maxSp);
+    else k.speed = Math.max(0, k.speed - k.friction * 2);
+    if (brake) k.speed = Math.max(0, k.speed - k.accel * 1.5);
+
+    let turn = k.turnRate;
+    if (k.char.abilityId === 'steel') turn *= 1.12;
+    if (drift && k.speed > 1.5) {
+      k.drifting = true;
+      k.driftDir = left ? -1 : right ? 1 : k.driftDir || (Math.random() > 0.5 ? 1 : -1);
+      turn *= 1.55;
+      k.turboCharge = Math.min(1, k.turboCharge + dt * (k.char.id === 'ferdi' ? 0.7 : 0.55));
+      if (k.char.id === 'benny') k.turboCharge = Math.min(1, k.turboCharge + dt * 0.15);
+      // Pixel Pia was replaced — Ferdi has handling; Benny has skansk
+      if (left || right) k.driftDir = left ? -1 : 1;
+      k.a += (left ? -1 : right ? 1 : k.driftDir) * turn * (k.speed / k.maxSpeed);
+      k.speed *= 0.995;
+    } else {
+      if (k.drifting && k.turboCharge > 0.55) {
+        k.boostT = Math.max(k.boostT, 0.55 + k.turboCharge * 0.5);
+        if (k.char.abilityId === 'skansk') k.boostT += 0.25;
+        if (k.isPlayer) say(k, k.char.lines[Math.floor(Math.random() * k.char.lines.length)]);
+      }
+      k.drifting = false;
+      k.turboCharge = 0;
+      k.driftDir = 0;
+      if (left) k.a -= turn * (0.4 + 0.6 * (k.speed / k.maxSpeed));
+      if (right) k.a += turn * (0.4 + 0.6 * (k.speed / k.maxSpeed));
+    }
+
+    k.x += Math.cos(k.a) * k.speed;
+    k.y += Math.sin(k.a) * k.speed;
+
+    // Soft walls — pull back toward track center if far off
+    const dx = k.x - state.track.cx, dy = k.y - state.track.cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 480) {
+      k.x = state.track.cx + (dx / dist) * 480;
+      k.y = state.track.cy + (dy / dist) * 480;
+      k.speed *= 0.5;
+    }
+
+    advanceWaypoint(k);
+
+    if (useItem) tryUseItem(k);
+    if (k.itemCd > 0) k.itemCd -= dt;
+
+    // Pickup boxes
+    for (const b of state.track.boxes) {
+      if (!b.alive) continue;
+      if (Math.hypot(k.x - b.x, k.y - b.y) < 22) {
+        b.alive = false; b.respawn = 5;
+        if (!k.item) {
+          giveItem(k);
+          if (k.isPlayer) say(k, 'Hörru, va sjutton!');
+        }
+      }
+    }
+  }
+
+  function steerAngleDelta(k) {
+    const wp = state.track.waypoints[k.wp];
+    return Math.atan2(wp.y - k.y, wp.x - k.x) - k.a;
+  }
+
+  function advanceWaypoint(k) {
+    const wps = state.track.waypoints;
+    const wp = wps[k.wp];
+    if (Math.hypot(k.x - wp.x, k.y - wp.y) < 55) {
+      const prev = k.wp;
+      k.wp = (k.wp + 1) % wps.length;
+      if (prev > wps.length - 4 && k.wp < 4) {
+        // crossed finish
+        if (!k.finished) {
+          k.lap++;
+          if (k.lap > TOTAL_LAPS) {
+            k.lap = TOTAL_LAPS;
+            k.finished = true;
+            k.finishPlace = state.karts.filter(x => x.finished).length;
+            k.speed *= 0.5;
+            if (k.isPlayer) say(k, 'Klart, ba!');
+          } else if (k.isPlayer) {
+            say(k, k.char.lines[Math.floor(Math.random() * k.char.lines.length)]);
+          }
+        }
+      }
+    }
+    k.progress = (k.lap - 1) * wps.length + k.wp - Math.min(1, Math.hypot(k.x - wp.x, k.y - wp.y) / 200);
+  }
+
+  function giveItem(k) {
+    let id = ITEM_IDS[Math.floor(Math.random() * ITEM_IDS.length)];
+    // slight bias
+    if (k.char.abilityId === 'kombat' && Math.random() < 0.35) id = 'vaccin';
+    if (k.char.id === 'annie' && Math.random() < 0.35) id = 'banan';
+    k.item = id;
+  }
+
+  function tryUseItem(k) {
+    if (!k.item || k.itemCd > 0) return;
+    const id = k.item;
+    k.item = null;
+    k.itemCd = k.char.abilityId === 'kombat' ? 0.35 : 0.6;
+
+    if (id === 'banan') {
+      const behind = k.a + Math.PI;
+      state.hazards.push({
+        type: 'banan', alive: true,
+        x: k.x + Math.cos(behind) * 28,
+        y: k.y + Math.sin(behind) * 28
+      });
+      if (k.isPlayer) say(k, 'Banan ute, grabbasar!');
+    } else if (id === 'vaccin') {
+      k.boostT = Math.max(k.boostT, 1.4);
+      if (k.isPlayer) say(k, 'Vaccin Boost, ba!');
+    } else if (id === 'alvedon') {
+      k.shieldT = Math.max(k.shieldT, 3.5);
+      k.spinT = 0; k.stunT = 0;
+      k.speed = Math.min(k.maxSpeed, k.speed + 0.8);
+      if (k.isPlayer) say(k, 'Alvedon! Nu e de bra.');
+    }
+  }
+
+  function updateHazards(dt) {
+    for (const h of state.hazards) {
+      if (!h.alive) continue;
+      for (const k of state.karts) {
+        if (Math.hypot(k.x - h.x, k.y - h.y) < 18) {
+          h.alive = false;
+          if (k.shieldT > 0) { k.shieldT = 0; continue; }
+          k.spinT = 1.1;
+          k.speed *= 0.3;
+          if (k.isPlayer) say(k, 'Det där va mög!');
+        }
+      }
+    }
+    state.hazards = state.hazards.filter(h => h.alive);
+  }
+
+  function updateBoxes(dt) {
+    for (const b of state.track.boxes) {
+      if (!b.alive) {
+        b.respawn -= dt;
+        if (b.respawn <= 0) b.alive = true;
+      }
+    }
+  }
+
+  function resolveCollisions() {
+    for (let i = 0; i < state.karts.length; i++) {
+      for (let j = i + 1; j < state.karts.length; j++) {
+        const a = state.karts[i], b = state.karts[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 22 && d > 0.1) {
+          const nx = dx / d, ny = dy / d;
+          const overlap = 22 - d;
+          const aw = a.char.weight, bw = b.char.weight;
+          a.x -= nx * overlap * (bw / (aw + bw));
+          a.y -= ny * overlap * (bw / (aw + bw));
+          b.x += nx * overlap * (aw / (aw + bw));
+          b.y += ny * overlap * (aw / (aw + bw));
+          let push = 0.4;
+          if (a.char.abilityId === 'hotbump') push *= 1.35;
+          if (b.char.abilityId === 'hotbump') push *= 1.35;
+          a.speed *= 0.92; b.speed *= 0.92;
+          a.x -= nx * push; a.y -= ny * push;
+          b.x += nx * push; b.y += ny * push;
+        }
+      }
+    }
+  }
+
+  function aiControl(k, dt) {
+    k.aiTimer -= dt;
+    const wps = state.track.waypoints;
+    const look = wps[(k.wp + 2) % wps.length];
+    let desired = Math.atan2(look.y - k.y, look.x - k.x);
+    let diff = desired - k.a;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    k._left = diff < -0.08;
+    k._right = diff > 0.08;
+    k._gas = true;
+    k._brake = Math.abs(diff) > 0.9;
+    k._drift = Math.abs(diff) > 0.5 && k.speed > 2.5;
+    k._item = false;
+    if (k.item && Math.random() < 0.008) k._item = true;
+    // Soft cap so player can catch up
+    const aiCap = k.maxSpeed * 0.88;
+    if (k.speed > aiCap) k.speed = aiCap;
+    if (Math.random() < 0.003) k.speed *= 0.8;
+  }
+
+  function updatePositions() {
+    const sorted = [...state.karts].sort((a, b) => b.progress - a.progress);
+    sorted.forEach((k, i) => { k.place = i + 1; });
+  }
+
+  function checkRaceOver() {
+    if (state.player.finished) {
+      state.finished = true;
+      setTimeout(() => {
+        const sorted = [...state.karts].sort((a, b) => {
+          if (a.finished && b.finished) return a.finishPlace - b.finishPlace;
+          if (a.finished) return -1;
+          if (b.finished) return 1;
+          return b.progress - a.progress;
+        });
+        const list = $('result-list');
+        list.innerHTML = sorted.map((k, i) =>
+          `<li style="color:${k.char.color}"><b>${i + 1}.</b> ${k.char.name}${k.isPlayer ? ' (du)' : ''}</li>`
+        ).join('');
+        $('result-title').textContent = state.player.finishPlace === 1 ? 'SEGER, BA!' : 'MÅLGÅNG!';
+        showScreen('result');
+      }, 1200);
+    }
+  }
+
+  function drawRace() {
+    const cam = {
+      x: state.player.x - Math.cos(state.player.a) * 28,
+      y: state.player.y - Math.sin(state.player.a) * 28,
+      a: state.player.a,
+      hazards: state.hazards
+    };
+    KartRenderer.drawWorld(ctx, W, H, cam, state.track, state.karts, state.player);
+
+    // HUD
+    const p = state.player;
+    $('hud-lap').textContent = `VARV: ${Math.min(p.lap, TOTAL_LAPS)} / ${TOTAL_LAPS}`;
+    $('hud-pos').textContent = `POS: ${state.placeNames[(p.place || 1) - 1] || p.place}`;
+    const itemDef = window.KART_ITEMS.find(i => i.id === p.item);
+    $('hud-item').textContent = itemDef ? `ITEM: ${itemDef.icon} ${itemDef.name}` : 'ITEM: —';
+    $('hud-track').textContent = state.track.name;
+
+    if (state.countdown > 0) {
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#ffcc00';
+      ctx.font = 'bold 96px Courier New';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(state.countdown), W / 2, H / 2);
+    } else if (state.countdown === 0 && state.raceTime < 0.8) {
+      ctx.fillStyle = '#ffcc00';
+      ctx.font = 'bold 64px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText('KÖR!', W / 2, H / 2);
+    }
+
+    // Drift meter
+    if (p.drifting) {
+      ctx.fillStyle = '#111';
+      ctx.fillRect(W / 2 - 50, H - 28, 100, 10);
+      ctx.fillStyle = p.turboCharge > 0.55 ? '#ffe600' : '#ff8800';
+      ctx.fillRect(W / 2 - 50, H - 28, 100 * p.turboCharge, 10);
+    }
+  }
+
+  // Expose for buttons
+  window.NarioKart = {
+    init,
+    goSelect: () => showScreen('select'),
+    goTrack: () => { buildTrackSelect(); showScreen('track'); },
+    goArcade: () => showScreen('select'),
+    startRace,
+    showScreen
+  };
+
+  function boot() {
+    try { init(); }
+    catch (e) {
+      console.error(e);
+      var errEl = document.getElementById('boot-error');
+      if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Fel: ' + e.message; }
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+
+</script>
+<script>
+/* Extra robust button wiring (in case inline handlers fail) */
+(function(){
+  function bind(){
+    function on(id, fn){
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.onclick = function(e){
+        try { e.preventDefault(); fn(); }
+        catch (err) { console.error(err); alert('Fel: ' + err.message); }
+      };
+    }
+    on('btn-to-track', function(){ window.NarioKart.goTrack(); });
+    on('btn-back-char', function(){ window.NarioKart.goSelect(); });
+    on('btn-start-race', function(){ window.NarioKart.startRace(); });
+    on('btn-again', function(){ window.NarioKart.goSelect(); });
+    on('btn-to-select', function(){ window.NarioKart.goSelect(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+</script>
+</body>
+</html>
